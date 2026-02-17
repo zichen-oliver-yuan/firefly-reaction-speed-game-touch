@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Firefly - Reaction Speed Game</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div id="game-container" class="game-container">
+        <div id="screen-demo" class="screen screen-demo">
+            <div class="demo-content">
+                <img src="assets/SVG/Firefly_Lockup_Horz_DarkBlue_RGB.svg" alt="Firefly" class="firefly-logo">
+                <h1 id="demo-text" class="demo-text">How fast can you react at moments that matter?</h1>
+                <button id="demo-start-btn" class="start-button">Tap to start</button>
+            </div>
+        </div>
+
+        <div id="screen-welcome" class="screen screen-welcome hidden">
+            <div class="welcome-content">
+                <img src="assets/SVG/Firefly_Lockup_Horz_DarkBlue_RGB.svg" alt="Firefly" class="firefly-logo">
+                <h1>Welcome!</h1>
+                <div class="tutorial-prompt">
+                    <p>Would you like a tutorial?</p>
+                    <div class="button-group">
+                        <button id="tutorial-yes" class="btn-primary">Yes</button>
+                        <button id="tutorial-no" class="btn-secondary">No</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="screen-tutorial" class="screen screen-tutorial hidden">
+            <div class="tutorial-content">
+                <img src="assets/SVG/Firefly_Lockup_Horz_DarkBlue_RGB.svg" alt="Firefly" class="firefly-logo">
+                <div id="tutorial-step" class="tutorial-step"></div>
+                <div class="tutorial-nav">
+                    <button id="tutorial-prev" class="btn-nav">prev ↓</button>
+                    <button id="tutorial-skip" class="btn-nav">skip ↓</button>
+                    <button id="tutorial-next" class="btn-nav">next ↓</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="screen-game" class="screen screen-game hidden">
+            <div class="game-header">
+                <div class="round-info">Round <span id="current-round">1</span>/<span id="total-rounds">5</span></div>
+                <div class="score-info">Score: <span id="current-score">0</span></div>
+            </div>
+
+            <div id="game-content" class="game-content">
+                <div id="waiting-message" class="waiting-message">Wait for the button...</div>
+                <div id="button-grid" class="button-grid"></div>
+            </div>
+        </div>
+
+        <div id="screen-feedback" class="screen screen-feedback hidden">
+            <div class="feedback-content">
+                <div class="round-info">Round <span id="feedback-round">1</span>/<span id="feedback-total">5</span></div>
+                <div id="feedback-score" class="score-info">Score: <span id="feedback-score-value">0</span></div>
+
+                <div id="feedback-success" class="feedback-success hidden">
+                    <div class="score-breakdown">
+                        <div>reaction <span id="reaction-score">+0</span></div>
+                        <div>combo <span id="combo-score">+0</span></div>
+                    </div>
+                    <div class="reaction-time">You reacted in <span id="reaction-time-value">0.000</span> sec.</div>
+                    <div class="feedback-message" id="feedback-message">That was impressive!</div>
+                </div>
+
+                <div id="feedback-timeout" class="feedback-timeout hidden">
+                    <div class="feedback-message">That round timed out. Be ready for the next one.</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="screen-score" class="screen screen-score hidden">
+            <div class="score-content">
+                <h1>Game Over!</h1>
+                <div class="final-score">Final Score: <span id="final-score">0</span></div>
+                <div class="final-stats">
+                    <div>Average Reaction: <span id="avg-reaction">0.000</span>s</div>
+                    <div>Best Reaction: <span id="best-reaction">0.000</span>s</div>
+                </div>
+                <div class="button-group">
+                    <button id="score-play-again-btn" class="btn-primary">Play Again</button>
+                    <button id="score-done-btn" class="btn-secondary">Done</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="screen-leaderboard" class="screen screen-leaderboard hidden">
+            <div class="leaderboard-content">
+                <h1>Leaderboard</h1>
+                <div class="player-name-section">
+                    <div class="player-name-display">
+                        <span>Your name: <strong id="display-player-name">Unknown</strong></span>
+                        <button id="modify-name-btn" class="btn-small">Modify</button>
+                    </div>
+                </div>
+                <div id="leaderboard-list" class="leaderboard-list"></div>
+                <div class="button-group">
+                    <button id="play-again-btn" class="btn-primary">Play Again</button>
+                    <button id="enter-name-btn" class="btn-secondary">Enter Name</button>
+                    <button id="leaderboard-done-btn" class="btn-secondary">Done</button>
+                </div>
+                <div id="leaderboard-countdown" class="countdown-timer">
+                    Returning to demo in <span id="countdown-value">20</span> seconds
+                </div>
+            </div>
+        </div>
+
+        <div id="screen-name-entry" class="screen screen-name-entry hidden">
+            <div class="name-entry-content">
+                <h1>Leader name</h1>
+                <input type="text" id="name-input" class="name-input" placeholder="Enter your name" maxlength="50">
+                <div id="touch-keyboard" class="touch-keyboard"></div>
+                <div class="button-group">
+                    <button id="confirm-name-btn" class="btn-primary">Confirm</button>
+                    <button id="cancel-name-btn" class="btn-secondary">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="screen-idle-warning" class="screen screen-idle-warning hidden">
+            <div class="idle-warning-content">
+                <h1>Are you still here?</h1>
+                <div class="idle-countdown">
+                    Returning to demo in <span id="idle-countdown-value">20</span> seconds
+                </div>
+                <button id="resume-btn" class="btn-primary">Resume</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/scoring.js"></script>
+    <script src="js/touch-keyboard.js"></script>
+    <script src="js/sheets.js"></script>
+    <script src="js/local-storage.js"></script>
+    <script src="js/game.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>

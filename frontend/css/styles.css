@@ -1,0 +1,622 @@
+/* Firefly Reaction Speed Game - Styles */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'SFT Schrifted Sans', sans-serif;
+}
+
+body {
+    font-family: 'SFT Schrifted Sans', sans-serif;
+    background: #f5f5f5;
+    color: #333;
+    overflow: hidden;
+    touch-action: manipulation;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.game-container {
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+}
+
+.screen {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.3s ease;
+}
+
+.screen.hidden {
+    display: none;
+}
+
+/* Firefly Logo */
+.firefly-logo {
+    position: fixed;
+    top: 10%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 200px;
+    height: auto;
+    z-index: 1000;
+}
+
+/* Demo/Waiting Screen */
+.screen-demo {
+    background: #f5f5f5;
+}
+
+.demo-content {
+    text-align: center;
+    padding: 2rem;
+}
+
+.demo-text {
+    font-size: 2rem;
+    margin: 2rem 0;
+    font-weight: 400;
+    color: #333;
+}
+
+.start-button {
+    position: fixed;
+    bottom: 10%;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'GT America Mono', monospace;
+    font-size: 1rem;
+    padding: 1rem 2rem;
+    font-weight: 300;
+    text-transform: uppercase;
+    background: #e9ff7d;
+    color: black;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    touch-action: manipulation;
+    letter-spacing: 0.1em;
+    z-index: 100;
+}
+
+.start-button:active {
+    background: #d4e866;
+    transform: translateX(-50%) scale(0.98);
+}
+
+.arrow-down {
+    font-size: 2rem;
+    color: #999;
+    margin-top: 1rem;
+}
+
+/* Welcome Screen */
+.screen-welcome {
+    background: #f5f5f5;
+}
+
+.welcome-content {
+    text-align: center;
+    padding: 2rem;
+}
+
+.tutorial-prompt {
+    margin-top: 3rem;
+}
+
+.button-group {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-top: 2rem;
+}
+
+.btn-primary, .btn-secondary {
+    font-family: 'GT America Mono', monospace;
+    font-size: 1.2rem;
+    padding: 1rem 2rem;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    touch-action: manipulation;
+    text-transform: uppercase;
+}
+
+.btn-primary {
+    background: #e9ff7d;
+    color: black;
+}
+
+.btn-primary:active {
+    background: #d4e866;
+}
+
+.btn-secondary {
+    background: #e0e0e0;
+    color: #333;
+}
+
+.btn-secondary:active {
+    background: #d0d0d0;
+}
+
+/* Tutorial Screen */
+.screen-tutorial {
+    background: #f5f5f5;
+}
+
+.tutorial-content {
+    text-align: center;
+    padding: 2rem;
+    max-width: 800px;
+}
+
+.tutorial-step {
+    min-height: 400px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.tutorial-nav {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-top: 2rem;
+}
+
+.btn-nav {
+    font-family: 'GT America Mono', monospace;
+    font-size: 1rem;
+    padding: 0.5rem 1rem;
+    background: transparent;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    cursor: pointer;
+    touch-action: manipulation;
+    text-transform: uppercase;
+}
+
+/* Game Screen */
+.screen-game {
+    background: #f5f5f5;
+    flex-direction: column;
+}
+
+.game-header {
+    display: flex;
+    justify-content: space-between;
+    padding: 1rem 2rem;
+    background: white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.round-info, .score-info {
+    font-size: 1.5rem;
+    font-weight: bold;
+}
+
+.game-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+}
+
+/* Button Grid (5x5) */
+.button-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    grid-template-rows: repeat(5, 1fr);
+    gap: 1rem;
+    max-width: 600px;
+    width: 100%;
+    aspect-ratio: 1;
+}
+
+.game-button {
+    background: #e0e0e0;
+    border: 3px solid #ccc;
+    border-radius: 50%;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: all 0.1s ease;
+    position: relative;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.game-button:hover {
+    background: #d0d0d0;
+    border-color: #bbb;
+}
+
+.game-button:active {
+    transform: scale(0.95);
+    background: #c0c0c0;
+}
+
+.game-button.lit {
+    background: #fff;
+    border-color: #e9ff7d;
+    box-shadow: 0 0 20px rgba(233, 255, 125, 0.8);
+    animation: pulse-glow 1s infinite;
+    cursor: pointer;
+}
+
+.game-button.lit:hover {
+    background: #f0f0f0;
+    box-shadow: 0 0 25px rgba(233, 255, 125, 1);
+}
+
+@keyframes pulse-glow {
+    0%, 100% { 
+        box-shadow: 0 0 20px rgba(233, 255, 125, 0.8);
+        opacity: 1;
+    }
+    50% { 
+        box-shadow: 0 0 30px rgba(233, 255, 125, 1);
+        opacity: 0.9;
+    }
+}
+
+/* Breathing light effect for clickable buttons */
+@keyframes breathing-light {
+    0%, 100% {
+        box-shadow: 0 0 15px rgba(233, 255, 125, 0.6),
+                    0 0 30px rgba(233, 255, 125, 0.4),
+                    0 0 45px rgba(233, 255, 125, 0.2);
+        opacity: 0.8;
+    }
+    50% {
+        box-shadow: 0 0 25px rgba(233, 255, 125, 0.9),
+                    0 0 50px rgba(233, 255, 125, 0.6),
+                    0 0 75px rgba(233, 255, 125, 0.3);
+        opacity: 1;
+    }
+}
+
+.game-button.clickable {
+    animation: breathing-light 2s ease-in-out infinite;
+    border-color: #e9ff7d;
+    background: rgba(233, 255, 125, 0.2);
+}
+
+/* Demo mode ambient animation */
+@keyframes ambient-glow {
+    0%, 100% {
+        opacity: 0.3;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.7;
+        transform: scale(1.05);
+    }
+}
+
+.game-button.demo-ambient {
+    animation: ambient-glow 3s ease-in-out infinite;
+}
+
+.game-button.demo-ambient.delay-1 { animation-delay: 0.2s; }
+.game-button.demo-ambient.delay-2 { animation-delay: 0.4s; }
+.game-button.demo-ambient.delay-3 { animation-delay: 0.6s; }
+.game-button.demo-ambient.delay-4 { animation-delay: 0.8s; }
+.game-button.demo-ambient.delay-5 { animation-delay: 1.0s; }
+.game-button.demo-ambient.delay-6 { animation-delay: 1.2s; }
+.game-button.demo-ambient.delay-7 { animation-delay: 1.4s; }
+.game-button.demo-ambient.delay-8 { animation-delay: 1.6s; }
+.game-button.demo-ambient.delay-9 { animation-delay: 1.8s; }
+.game-button.demo-ambient.delay-10 { animation-delay: 2.0s; }
+.game-button.demo-ambient.delay-11 { animation-delay: 2.2s; }
+.game-button.demo-ambient.delay-12 { animation-delay: 2.4s; }
+
+.waiting-message {
+    font-size: 2rem;
+    margin-bottom: 2rem;
+    color: #666;
+    text-align: center;
+}
+
+/* Feedback Screen */
+.screen-feedback {
+    background: #f5f5f5;
+}
+
+.feedback-content {
+    text-align: center;
+    padding: 2rem;
+}
+
+.feedback-success {
+    background: #e9ff7d;
+    color: black;
+    padding: 2rem;
+    border-radius: 12px;
+    margin-top: 2rem;
+}
+
+.feedback-timeout {
+    background: #ff9800;
+    color: black;
+    padding: 2rem;
+    border-radius: 12px;
+    margin-top: 2rem;
+}
+
+.score-breakdown {
+    display: flex;
+    gap: 2rem;
+    justify-content: center;
+    margin: 1rem 0;
+    font-size: 1.2rem;
+}
+
+.reaction-time {
+    font-size: 1.5rem;
+    margin: 1rem 0;
+}
+
+.feedback-message {
+    font-size: 1.2rem;
+    margin-top: 1rem;
+}
+
+.round-result-countdown {
+    margin-top: 2rem;
+    font-size: 1.2rem;
+    color: #666;
+}
+
+.round-result-countdown span {
+    font-weight: bold;
+    color: black;
+    font-size: 1.5rem;
+}
+
+/* Score Screen */
+.screen-score {
+    background: #f5f5f5;
+}
+
+.score-content {
+    text-align: center;
+    padding: 2rem;
+}
+
+.final-score {
+    font-size: 3rem;
+    font-weight: bold;
+    margin: 2rem 0;
+    color: black;
+}
+
+.final-stats {
+    font-size: 1.5rem;
+    margin: 2rem 0;
+    color: #666;
+}
+
+/* Leaderboard Screen */
+.screen-leaderboard {
+    background: #f5f5f5;
+}
+
+.leaderboard-content {
+    text-align: center;
+    padding: 2rem;
+    max-width: 600px;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+.player-name-section {
+    margin: 1rem 0;
+    padding: 1rem;
+    background: white;
+    border-radius: 8px;
+}
+
+.player-name-display {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1rem;
+    font-size: 1.2rem;
+}
+
+.btn-small {
+    font-family: 'GT America Mono', monospace;
+    font-size: 0.9rem;
+    padding: 0.5rem 1rem;
+    background: #e9ff7d;
+    color: black;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    touch-action: manipulation;
+    text-transform: uppercase;
+}
+
+.btn-small:active {
+    background: #d4e866;
+}
+
+.leaderboard-list {
+    background: white;
+    border-radius: 8px;
+    padding: 1rem;
+    margin: 2rem 0;
+    max-height: 400px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.leaderboard-entry {
+    display: flex;
+    justify-content: space-between;
+    padding: 1rem;
+    border-bottom: 1px solid #eee;
+    font-size: 1.2rem;
+}
+
+.leaderboard-entry:last-child {
+    border-bottom: none;
+}
+
+.leaderboard-rank {
+    font-weight: bold;
+    color: black;
+    margin-right: 1rem;
+}
+
+.countdown-timer {
+    margin-top: auto;
+    padding: 1rem;
+    font-size: 1.1rem;
+    color: #666;
+    background: #f0f0f0;
+    border-radius: 8px;
+}
+
+.countdown-timer span {
+    font-weight: bold;
+    color: #e9ff7d;
+    font-size: 1.3rem;
+}
+
+/* Name Entry Screen */
+.screen-name-entry {
+    background: #f5f5f5;
+}
+
+.name-entry-content {
+    text-align: center;
+    padding: 2rem;
+    max-width: 600px;
+}
+
+.name-input {
+    font-size: 1.5rem;
+    padding: 1rem;
+    width: 100%;
+    border: 2px solid #ccc;
+    border-radius: 8px;
+    margin: 2rem 0;
+    text-align: center;
+}
+
+/* Touch Keyboard */
+.touch-keyboard {
+    margin: 2rem 0;
+    background: white;
+    border-radius: 8px;
+    padding: 1rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.keyboard-row {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    margin: 0.5rem 0;
+}
+
+.keyboard-key {
+    min-width: 50px;
+    height: 50px;
+    font-size: 1.2rem;
+    background: #f0f0f0;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    cursor: pointer;
+    touch-action: manipulation;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.keyboard-key:active {
+    background: #e0e0e0;
+    transform: scale(0.95);
+}
+
+.keyboard-key.wide {
+    min-width: 100px;
+}
+
+.keyboard-key.space {
+    min-width: 300px;
+}
+
+/* Idle Warning Screen */
+.screen-idle-warning {
+    background: rgba(0, 0, 0, 0.9);
+    color: white;
+}
+
+.idle-warning-content {
+    text-align: center;
+    padding: 2rem;
+}
+
+.idle-warning-content h1 {
+    font-size: 2.5rem;
+    margin-bottom: 2rem;
+    color: #ff9800;
+}
+
+.idle-countdown {
+    font-size: 1.5rem;
+    margin: 2rem 0;
+    color: #fff;
+}
+
+.idle-countdown span {
+    font-weight: bold;
+    color: #ff9800;
+    font-size: 2rem;
+}
+
+/* Finish Screen */
+.screen-finish {
+    background: #f5f5f5;
+}
+
+.finish-content {
+    text-align: center;
+    padding: 2rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .demo-text {
+        font-size: 1.5rem;
+    }
+    
+    .firefly-logo {
+        width: 200px;
+    }
+    
+    .button-grid {
+        max-width: 90vw;
+    }
+    
+    .keyboard-key {
+        min-width: 40px;
+        height: 40px;
+        font-size: 1rem;
+    }
+}
