@@ -3,7 +3,9 @@
 class LocalStorageBackup {
   constructor() {
     this.storageKey = 'firefly_game_scores';
+    this.outboxKey = 'firefly_score_outbox_v1';
     this.maxEntries = 1000; // Limit to prevent storage overflow
+    this.retryBackoffMs = [2000, 5000, 15000, 60000, 300000];
   }
 
   /**
@@ -14,18 +16,31 @@ class LocalStorageBackup {
   async savePlayerScore(playerData) {
     try {
       const scores = this.getAllScores();
-      
-      // Add new score
-      scores.push({
+      const nextEntry = {
+        scoreId: playerData.scoreId || '',
         timestamp: playerData.timestamp || new Date().toISOString(),
         name: playerData.name || 'Unknown',
+        email: (playerData.email || '').trim().toLowerCase(),
+        company: playerData.company || '',
+        newsletterOptIn: playerData.newsletterOptIn || 'No',
         id: playerData.id || '',
         totalScore: playerData.totalScore || 0,
         averageReactionTime: playerData.averageReactionTime || 0,
         bestReactionTime: playerData.bestReactionTime || 0,
         reactionTimes: playerData.reactionTimes || [],
         rounds: playerData.rounds || 5
-      });
+      };
+
+      const hasScoreId = !!nextEntry.scoreId;
+      const existingIndex = hasScoreId
+        ? scores.findIndex((entry) => entry.scoreId && entry.scoreId === nextEntry.scoreId)
+        : -1;
+
+      if (existingIndex >= 0) {
+        scores[existingIndex] = { ...scores[existingIndex], ...nextEntry };
+      } else {
+        scores.push(nextEntry);
+      }
 
       // Keep only the most recent entries
       if (scores.length > this.maxEntries) {
@@ -61,6 +76,126 @@ class LocalStorageBackup {
       console.error('Error reading from local storage:', error);
       return [];
     }
+  }
+
+  getOutboxEntries() {
+    try {
+      const data = localStorage.getItem(this.outboxKey);
+      const entries = data ? JSON.parse(data) : [];
+      return Array.isArray(entries) ? entries : [];
+    } catch (error) {
+      console.error('Error reading outbox from local storage:', error);
+      return [];
+    }
+  }
+
+  setOutboxEntries(entries) {
+    try {
+      localStorage.setItem(this.outboxKey, JSON.stringify(entries));
+      return true;
+    } catch (error) {
+      console.error('Error writing outbox to local storage:', error);
+      return false;
+    }
+  }
+
+  enqueueScore(payload) {
+    try {
+      const scoreId = (payload && payload.scoreId) ? String(payload.scoreId) : '';
+      if (!scoreId) return false;
+
+      const entries = this.getOutboxEntries();
+      const now = Date.now();
+      const existingIndex = entries.findIndex((entry) => entry.scoreId === scoreId);
+
+      if (existingIndex >= 0) {
+        const existing = entries[existingIndex];
+        if (existing.status === 'acked') {
+          return true;
+        }
+        entries[existingIndex] = {
+          ...existing,
+          payload,
+          status: 'pending',
+          nextRetryAt: Math.min(existing.nextRetryAt || now, now)
+        };
+      } else {
+        entries.push({
+          scoreId,
+          payload,
+          status: 'pending',
+          retryCount: 0,
+          lastAttemptAt: null,
+          nextRetryAt: now,
+          lastError: ''
+        });
+      }
+
+      return this.setOutboxEntries(entries);
+    } catch (error) {
+      console.error('Error enqueueing score:', error);
+      return false;
+    }
+  }
+
+  getPendingScores(now = Date.now()) {
+    const entries = this.getOutboxEntries();
+    return entries
+      .filter((entry) => entry.status === 'pending' && (entry.nextRetryAt || 0) <= now)
+      .sort((a, b) => {
+        const aTime = a.nextRetryAt || 0;
+        const bTime = b.nextRetryAt || 0;
+        if (aTime !== bTime) return aTime - bTime;
+        return String(a.scoreId).localeCompare(String(b.scoreId));
+      });
+  }
+
+  markOutboxAttempt(scoreId) {
+    const entries = this.getOutboxEntries();
+    const idx = entries.findIndex((entry) => entry.scoreId === scoreId);
+    if (idx < 0) return false;
+    entries[idx].lastAttemptAt = Date.now();
+    return this.setOutboxEntries(entries);
+  }
+
+  markAcked(scoreId, serverTimestamp = '') {
+    const entries = this.getOutboxEntries();
+    const idx = entries.findIndex((entry) => entry.scoreId === scoreId);
+    if (idx < 0) return false;
+    entries[idx].status = 'acked';
+    entries[idx].ackedAt = Date.now();
+    entries[idx].serverTimestamp = serverTimestamp || '';
+    entries[idx].lastError = '';
+    return this.setOutboxEntries(entries);
+  }
+
+  scheduleRetry(scoreId, errorMessage = 'sync_failed') {
+    const entries = this.getOutboxEntries();
+    const idx = entries.findIndex((entry) => entry.scoreId === scoreId);
+    if (idx < 0) return false;
+
+    const currentRetry = Number(entries[idx].retryCount) || 0;
+    const nextRetry = currentRetry + 1;
+    const delayIdx = Math.min(nextRetry - 1, this.retryBackoffMs.length - 1);
+    const delayMs = this.retryBackoffMs[delayIdx];
+
+    entries[idx].status = 'pending';
+    entries[idx].retryCount = nextRetry;
+    entries[idx].lastError = String(errorMessage || 'sync_failed');
+    entries[idx].nextRetryAt = Date.now() + delayMs;
+    return this.setOutboxEntries(entries);
+  }
+
+  hasPendingScores() {
+    const entries = this.getOutboxEntries();
+    return entries.some((entry) => entry.status === 'pending');
+  }
+
+  isScorePending(scoreId) {
+    if (!scoreId) return false;
+    const entries = this.getOutboxEntries();
+    const found = entries.find((entry) => entry.scoreId === scoreId);
+    return !!found && found.status === 'pending';
   }
 
   /**
@@ -132,7 +267,7 @@ class LocalStorageBackup {
     if (scores.length === 0) return '';
 
     // CSV header
-    const headers = ['Timestamp', 'Name', 'ID', 'Score', 'Avg Reaction', 'Best Reaction', 'Rounds'];
+    const headers = ['Timestamp', 'Name', 'Email', 'Company', 'Consent', 'ID', 'Score', 'Avg Reaction', 'Best Reaction', 'Rounds'];
     let csv = headers.join(',') + '\n';
 
     // CSV rows
@@ -140,6 +275,9 @@ class LocalStorageBackup {
       const row = [
         score.timestamp || '',
         `"${(score.name || 'Unknown').replace(/"/g, '""')}"`, // Escape quotes
+        `"${(score.email || '').replace(/"/g, '""')}"`,
+        `"${(score.company || '').replace(/"/g, '""')}"`,
+        score.newsletterOptIn || 'No',
         score.id || '',
         score.totalScore || 0,
         score.averageReactionTime || 0,
@@ -158,6 +296,7 @@ class LocalStorageBackup {
   clearAll() {
     try {
       localStorage.removeItem(this.storageKey);
+      localStorage.removeItem(this.outboxKey);
       console.log('All scores cleared from local storage');
     } catch (error) {
       console.error('Error clearing local storage:', error);
@@ -170,8 +309,10 @@ class LocalStorageBackup {
    */
   getStats() {
     const scores = this.getAllScores();
+    const outbox = this.getOutboxEntries();
     return {
       totalEntries: scores.length,
+      pendingSyncEntries: outbox.filter((entry) => entry.status === 'pending').length,
       storageSize: JSON.stringify(scores).length,
       oldestEntry: scores.length > 0 ? scores[0].timestamp : null,
       newestEntry: scores.length > 0 ? scores[scores.length - 1].timestamp : null

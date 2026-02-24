@@ -2,40 +2,27 @@
 
 class ScoringSystem {
   constructor() {
-    this.baseScore = 1000;
-    this.comboMultiplier = 1.0;
-    this.comboBonus = 20;
-    this.maxCombo = 10;
+    this.speedBonusRatio = 0.6;
   }
 
   /**
-   * Calculate score based on reaction time.
+   * Calculate hit score based on reaction time.
    * @param {number} reactionTime - Reaction time in seconds
-   * @param {number} comboCount - Current combo count
    * @returns {object} Score breakdown
    */
-  calculateScore(reactionTime, comboCount = 0) {
+  calculateHitScore(reactionTime) {
     const maxTime = CONFIG.game.maxReactionTime;
     const minTime = CONFIG.game.minReactionTime;
-    
-    // Normalize reaction time (faster = higher score)
+    const baseHitScore = CONFIG.game.hitScore || 300;
+
     const normalizedTime = Math.max(0, Math.min(1, (maxTime - reactionTime) / (maxTime - minTime)));
-    
-    // Base reaction score (0-1000 points)
-    const reactionScore = Math.floor(normalizedTime * this.baseScore);
-    
-    // Combo bonus
-    const combo = Math.min(comboCount, this.maxCombo);
-    const comboScore = combo > 0 ? combo * this.comboBonus : 0;
-    
-    // Total score
-    const totalScore = reactionScore + comboScore;
-    
+    const speedBonus = Math.floor(baseHitScore * this.speedBonusRatio * normalizedTime);
+    const totalScore = baseHitScore + speedBonus;
+
     return {
-      reaction: reactionScore,
-      combo: comboScore,
-      total: totalScore,
-      comboCount: combo
+      hit: baseHitScore,
+      speed: speedBonus,
+      total: totalScore
     };
   }
 
@@ -60,14 +47,6 @@ class ScoringSystem {
     }
   }
 
-  /**
-   * Check if reaction qualifies for combo bonus.
-   * @param {number} reactionTime - Reaction time in seconds
-   * @returns {boolean} True if qualifies for combo
-   */
-  qualifiesForCombo(reactionTime) {
-    return reactionTime <= CONFIG.game.comboThreshold;
-  }
 }
 
 // Export for use in other modules

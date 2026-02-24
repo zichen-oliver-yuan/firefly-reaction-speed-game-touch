@@ -1,4 +1,4 @@
-/** Touch keyboard for name entry. */
+/** Touch keyboard for lead form entry. */
 
 class TouchKeyboard {
   constructor(inputElement) {
@@ -6,6 +6,23 @@ class TouchKeyboard {
     this.container = null;
     this.shift = false;
     this.capsLock = false;
+  }
+
+  getSelectionRange() {
+    if (!this.input) return { start: 0, end: 0 };
+    const valueLength = (this.input.value || '').length;
+    const rawStart = this.input.selectionStart;
+    const rawEnd = this.input.selectionEnd;
+    const hasStart = typeof rawStart === 'number' && !Number.isNaN(rawStart);
+    const hasEnd = typeof rawEnd === 'number' && !Number.isNaN(rawEnd);
+    const start = hasStart ? rawStart : valueLength;
+    const end = hasEnd ? rawEnd : valueLength;
+    return { start, end };
+  }
+
+  emitInputEvent() {
+    if (!this.input) return;
+    this.input.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
   /**
@@ -24,10 +41,11 @@ class TouchKeyboard {
     if (!this.container) return;
 
     const layout = [
+      ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'],
       ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
-      ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'],
+      ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', '@'],
       ['shift', 'z', 'x', 'c', 'v', 'b', 'n', 'm', 'backspace'],
-      ['space']
+      ['.', '-', '_', 'space']
     ];
 
     this.container.innerHTML = '';
@@ -43,18 +61,30 @@ class TouchKeyboard {
         if (key === 'shift') {
           keyEl.textContent = '⇧';
           keyEl.classList.add('wide');
-          keyEl.addEventListener('click', () => this.toggleShift());
+          keyEl.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            this.toggleShift();
+          });
         } else if (key === 'backspace') {
           keyEl.textContent = '⌫';
           keyEl.classList.add('wide');
-          keyEl.addEventListener('click', () => this.handleBackspace());
+          keyEl.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            this.handleBackspace();
+          });
         } else if (key === 'space') {
           keyEl.textContent = 'Space';
           keyEl.classList.add('space');
-          keyEl.addEventListener('click', () => this.handleKey(' '));
+          keyEl.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            this.handleKey(' ');
+          });
         } else {
           keyEl.textContent = this.getKeyDisplay(key);
-          keyEl.addEventListener('click', () => this.handleKey(key));
+          keyEl.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            this.handleKey(key);
+          });
         }
 
         rowEl.appendChild(keyEl);
@@ -86,16 +116,18 @@ class TouchKeyboard {
     const char = (this.shift || this.capsLock) ? key.toUpperCase() : key.toLowerCase();
     
     // Insert character at cursor position
-    const start = this.input.selectionStart || 0;
-    const end = this.input.selectionEnd || 0;
+    const { start, end } = this.getSelectionRange();
     const value = this.input.value;
     
     this.input.value = value.substring(0, start) + char + value.substring(end);
     
     // Move cursor
     const newPos = start + 1;
-    this.input.setSelectionRange(newPos, newPos);
-    this.input.focus();
+    if (typeof this.input.setSelectionRange === 'function') {
+      this.input.setSelectionRange(newPos, newPos);
+    }
+    this.emitInputEvent();
+    this.input.focus({ preventScroll: true });
 
     // Turn off shift after key press (unless caps lock)
     if (this.shift && !this.capsLock) {
@@ -110,21 +142,25 @@ class TouchKeyboard {
   handleBackspace() {
     if (!this.input) return;
 
-    const start = this.input.selectionStart || 0;
-    const end = this.input.selectionEnd || 0;
+    const { start, end } = this.getSelectionRange();
     const value = this.input.value;
 
     if (start === end && start > 0) {
       // Delete character before cursor
       this.input.value = value.substring(0, start - 1) + value.substring(start);
-      this.input.setSelectionRange(start - 1, start - 1);
+      if (typeof this.input.setSelectionRange === 'function') {
+        this.input.setSelectionRange(start - 1, start - 1);
+      }
     } else if (start !== end) {
       // Delete selection
       this.input.value = value.substring(0, start) + value.substring(end);
-      this.input.setSelectionRange(start, start);
+      if (typeof this.input.setSelectionRange === 'function') {
+        this.input.setSelectionRange(start, start);
+      }
     }
 
-    this.input.focus();
+    this.emitInputEvent();
+    this.input.focus({ preventScroll: true });
   }
 
   /**

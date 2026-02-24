@@ -4,28 +4,35 @@ class UIController {
   constructor() {
     this.currentScreen = null;
     this.tutorialStep = 0;
+    this.demoRotationInterval = null;
+    this.demoRotationIndex = 0;
+    this.demoRotationMs = 4500;
+    this.demoSlides = [];
     this.tutorialSteps = [
       {
         title: 'How this works',
-        content: 'Find out your reaction speed with this mini game.'
-      },
-      {
-        title: 'Game mechanics',
-        content: 'After a random delay, one button lights up. Tap it as fast as you can.'
+        content: 'This is Whac-A-Mole with buttons.<br><br>Buttons light up at random for a short time.<br><br>Hit the lit button before it goes dark.',
+        mediaLabel: 'Animation / video placeholder'
       },
       {
         title: 'Scoring',
-        content: 'Faster reactions and streaks give higher scores.'
+        content: 'Each lit button you hit earns points.<br><br>Faster hits give a speed bonus.<br><br>Misses and wrong taps cost points.',
+        mediaLabel: 'Animation / video placeholder'
       }
     ];
   }
 
   updateState(state) {
     this.hideAllScreens();
+    if (state !== 'demo') {
+      this.stopDemoRotation();
+    }
 
     switch (state) {
       case 'demo':
         this.showScreen('demo');
+        this.clearLeadFormData();
+        this.startDemoRotation();
         break;
       case 'welcome':
         this.showScreen('welcome');
@@ -33,6 +40,9 @@ class UIController {
       case 'tutorial':
         this.showScreen('tutorial');
         this.updateTutorialStep(0);
+        break;
+      case 'countdown':
+        this.showScreen('countdown');
         break;
       case 'game_start':
       case 'game_play':
@@ -43,11 +53,12 @@ class UIController {
       case 'show_score':
         this.showScreen('score');
         break;
+      case 'lead_form':
+        this.showScreen('lead-form');
+        this.clearLeadFormError();
+        break;
       case 'show_leaderboard':
         this.showScreen('leaderboard');
-        break;
-      case 'name_entry':
-        this.showScreen('name-entry');
         break;
       case 'idle_warning':
         this.showScreen('idle-warning');
@@ -73,6 +84,145 @@ class UIController {
     }
   }
 
+  startDemoRotation() {
+    this.stopDemoRotation();
+    this.demoRotationIndex = 0;
+    this.demoSlides = this.buildDemoSlides([], null);
+    this.renderDemoSlide();
+
+    this.loadDemoRotationData().then((data) => {
+      if (this.currentScreen !== 'demo') return;
+      this.demoSlides = this.buildDemoSlides(data.leaderboard, data.todayStats);
+      this.renderDemoSlide();
+    });
+
+    this.demoRotationInterval = setInterval(() => {
+      if (!this.demoSlides || this.demoSlides.length === 0) return;
+      this.demoRotationIndex = (this.demoRotationIndex + 1) % this.demoSlides.length;
+      this.renderDemoSlide();
+    }, this.demoRotationMs);
+  }
+
+  stopDemoRotation() {
+    if (this.demoRotationInterval) {
+      clearInterval(this.demoRotationInterval);
+      this.demoRotationInterval = null;
+    }
+  }
+
+  async loadDemoRotationData() {
+    let leaderboard = [];
+    let todayStats = null;
+
+    if (window.game) {
+      if (typeof window.game.getLeaderboard === 'function') {
+        leaderboard = await window.game.getLeaderboard();
+      }
+      if (typeof window.game.getTodayReactionStats === 'function') {
+        todayStats = window.game.getTodayReactionStats();
+      }
+    }
+
+    return { leaderboard: Array.isArray(leaderboard) ? leaderboard.slice(0, 10) : [], todayStats };
+  }
+
+  buildDemoSlides(leaderboard, todayStats) {
+    return [
+      {
+        key: 'message',
+        title: 'How fast can you react at moments that matter?',
+        subtitle: 'Play this reaction game to find out'
+      },
+      {
+        key: 'leaderboard',
+        title: 'Top 10 Leaderboard',
+        subtitle: 'Current top reaction game scores',
+        leaderboard: Array.isArray(leaderboard) ? leaderboard.slice(0, 10) : []
+      },
+      {
+        key: 'fastest',
+        title: 'Fastest Reaction Today',
+        subtitle: 'Best single reaction time from today',
+        value: todayStats && typeof todayStats.fastestReaction === 'number'
+          ? `${todayStats.fastestReaction.toFixed(3)}s`
+          : 'No data yet',
+        sampleCount: todayStats && typeof todayStats.totalSessions === 'number' ? todayStats.totalSessions : 0
+      },
+      {
+        key: 'average',
+        title: 'Average Reaction Today',
+        subtitle: 'Average reaction time from today',
+        value: todayStats && typeof todayStats.averageReaction === 'number'
+          ? `${todayStats.averageReaction.toFixed(3)}s`
+          : 'No data yet',
+        sampleCount: todayStats && typeof todayStats.totalSessions === 'number' ? todayStats.totalSessions : 0
+      }
+    ];
+  }
+
+  renderDemoSlide() {
+    if (!this.demoSlides || this.demoSlides.length === 0) return;
+
+    const slide = this.demoSlides[this.demoRotationIndex % this.demoSlides.length];
+    const titleEl = document.getElementById('demo-text');
+    const subtitleEl = document.getElementById('demo-subtitle');
+    const contentEl = document.getElementById('demo-rotator-content');
+    if (!titleEl || !subtitleEl || !contentEl) return;
+
+    titleEl.textContent = slide.title;
+    subtitleEl.textContent = slide.subtitle;
+    contentEl.innerHTML = '';
+
+    contentEl.classList.remove('hidden');
+
+    if (slide.key === 'message') {
+      const placeholder = document.createElement('div');
+      placeholder.className = 'demo-stat-caption';
+      placeholder.textContent = 'Get ready to test your reflexes.';
+      contentEl.appendChild(placeholder);
+      return;
+    }
+
+    if (slide.key === 'leaderboard') {
+      if (!slide.leaderboard || slide.leaderboard.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'demo-stat-caption';
+        empty.textContent = 'No scores yet';
+        contentEl.appendChild(empty);
+        return;
+      }
+
+      const board = document.createElement('div');
+      board.className = 'demo-mini-leaderboard';
+      slide.leaderboard.forEach((entry) => {
+        const row = document.createElement('div');
+        row.className = 'demo-mini-row';
+        const name = document.createElement('span');
+        name.className = 'demo-mini-name';
+        name.textContent = `#${entry.rank} ${entry.name || 'Unknown'}`;
+        const score = document.createElement('span');
+        score.textContent = String(entry.score || 0);
+        row.appendChild(name);
+        row.appendChild(score);
+        board.appendChild(row);
+      });
+      contentEl.appendChild(board);
+      return;
+    }
+
+    const value = document.createElement('div');
+    value.className = 'demo-stat-value';
+    value.textContent = slide.value;
+    contentEl.appendChild(value);
+
+    const caption = document.createElement('div');
+    caption.className = 'demo-stat-caption';
+    caption.textContent = slide.sampleCount > 0
+      ? `${slide.sampleCount} session${slide.sampleCount > 1 ? 's' : ''} today`
+      : 'Play to generate today stats';
+    contentEl.appendChild(caption);
+  }
+
   initializeButtonGrid() {
     const grid = document.getElementById('button-grid');
     if (!grid) return;
@@ -92,94 +242,128 @@ class UIController {
     }
   }
 
+  emitPressEffect(buttonIndex) {
+    const buttons = document.querySelectorAll('.game-button');
+    const button = buttons[buttonIndex];
+    if (!button) return;
+
+    button.classList.remove('pressed');
+    void button.offsetWidth;
+    button.classList.add('pressed');
+
+    setTimeout(() => {
+      button.classList.remove('pressed');
+    }, 430);
+  }
+
   lightButton(buttonIndex) {
     const buttons = document.querySelectorAll('.game-button');
-    buttons.forEach((btn) => {
-      btn.classList.remove('lit', 'clickable');
-      btn.style.background = '#e0e0e0';
-    });
+    buttons.forEach((btn) => btn.classList.remove('lit'));
 
     if (buttons[buttonIndex]) {
-      buttons[buttonIndex].classList.add('lit', 'clickable');
-      buttons[buttonIndex].style.background = '#fff';
+      buttons[buttonIndex].classList.add('lit');
     }
   }
 
   clearLitButton() {
     const buttons = document.querySelectorAll('.game-button');
-    buttons.forEach((btn) => {
-      btn.classList.remove('lit', 'clickable');
-      btn.style.background = '#e0e0e0';
-    });
+    buttons.forEach((btn) => btn.classList.remove('lit'));
   }
 
-  showWaitingScreen(currentRound, totalRounds) {
+  prepareGameScreen() {
     this.showScreen('game');
-
-    const roundEl = document.getElementById('current-round');
-    const totalEl = document.getElementById('total-rounds');
     const waitingEl = document.getElementById('waiting-message');
+    const timeLane = document.getElementById('time-breakdown-anim');
 
-    if (roundEl) roundEl.textContent = currentRound;
-    if (totalEl) totalEl.textContent = totalRounds;
     if (waitingEl) {
-      waitingEl.textContent = 'Wait for the button...';
-      waitingEl.style.display = 'block';
+      waitingEl.textContent = 'Get ready...';
+      waitingEl.classList.remove('judgement-fast', 'judgement-good', 'judgement-slow', 'judgement-bad');
+    }
+    if (timeLane) {
+      timeLane.innerHTML = '';
     }
 
     this.clearLitButton();
   }
 
-  showRoundSuccess(currentRound, totalRounds, totalScore, reactionTime, scoreBreakdown, feedback) {
-    const scoreEl = document.getElementById('current-score');
-    if (scoreEl) scoreEl.textContent = totalScore;
-
-    this.showScreen('feedback');
-
-    const roundEl = document.getElementById('feedback-round');
-    const totalEl = document.getElementById('feedback-total');
-    const scoreValueEl = document.getElementById('feedback-score-value');
-    const reactionScoreEl = document.getElementById('reaction-score');
-    const comboScoreEl = document.getElementById('combo-score');
-    const reactionTimeEl = document.getElementById('reaction-time-value');
-    const messageEl = document.getElementById('feedback-message');
-
-    if (roundEl) roundEl.textContent = currentRound;
-    if (totalEl) totalEl.textContent = totalRounds;
-    if (scoreValueEl) scoreValueEl.textContent = totalScore;
-    if (reactionScoreEl) reactionScoreEl.textContent = `+${scoreBreakdown.reaction}`;
-    if (comboScoreEl) comboScoreEl.textContent = `+${scoreBreakdown.combo}`;
-    if (reactionTimeEl) reactionTimeEl.textContent = reactionTime.toFixed(3);
-    if (messageEl) messageEl.textContent = feedback;
-
-    const successEl = document.getElementById('feedback-success');
-    const timeoutEl = document.getElementById('feedback-timeout');
-    if (successEl) successEl.classList.remove('hidden');
-    if (timeoutEl) timeoutEl.classList.add('hidden');
-  }
-
-  showWrongButton() {
-    const waitingEl = document.getElementById('waiting-message');
-    if (waitingEl) {
-      waitingEl.textContent = 'Wrong button - try the lit one';
-      setTimeout(() => {
-        waitingEl.textContent = 'Wait for the button...';
-      }, 600);
+  updateTimeRemaining(seconds) {
+    const timeEl = document.getElementById('time-left');
+    if (timeEl) {
+      timeEl.textContent = Math.max(0, seconds);
     }
   }
 
-  showRoundTimeout(currentRound, totalRounds) {
-    this.showScreen('feedback');
+  updateGameStats(hits, misses, wrongWhacks) {
+    const statsEl = document.getElementById('game-stats');
+    if (statsEl) {
+      statsEl.textContent = `Hits ${hits} | Misses ${misses} | Wrong ${wrongWhacks}`;
+    }
+  }
 
-    const roundEl = document.getElementById('feedback-round');
-    const totalEl = document.getElementById('feedback-total');
-    const timeoutEl = document.getElementById('feedback-timeout');
-    const successEl = document.getElementById('feedback-success');
+  showGameStatus(message, tone = '') {
+    const waitingEl = document.getElementById('waiting-message');
+    if (!waitingEl) return;
+    waitingEl.textContent = message;
+    waitingEl.classList.remove('judgement-fast', 'judgement-good', 'judgement-slow', 'judgement-bad');
+    if (tone) {
+      waitingEl.classList.add(`judgement-${tone}`);
+    }
+  }
 
-    if (roundEl) roundEl.textContent = currentRound;
-    if (totalEl) totalEl.textContent = totalRounds;
-    if (timeoutEl) timeoutEl.classList.remove('hidden');
-    if (successEl) successEl.classList.add('hidden');
+  updateScore(score) {
+    const scoreEl = document.getElementById('current-score');
+    if (scoreEl) {
+      scoreEl.textContent = score;
+    }
+  }
+
+  animateScoreBreakdown(items = []) {
+    const lane = document.getElementById('score-breakdown-anim');
+    if (!lane) return;
+
+    lane.innerHTML = '';
+    items.forEach((item, index) => {
+      const chip = document.createElement('div');
+      chip.className = `score-chip ${item.type === 'bad' ? 'bad' : 'good'}`;
+      const sign = item.value > 0 ? '+' : '';
+      chip.textContent = `${item.label}: ${sign}${item.value}`;
+      lane.appendChild(chip);
+
+      const appearDelay = index * 140;
+      setTimeout(() => chip.classList.add('show'), appearDelay);
+      setTimeout(() => {
+        chip.classList.remove('show');
+        setTimeout(() => chip.remove(), 180);
+      }, 2200 + appearDelay);
+    });
+  }
+
+  animateTimeBreakdown(items = []) {
+    const lane = document.getElementById('time-breakdown-anim');
+    if (!lane) return;
+
+    lane.innerHTML = '';
+    items.forEach((item, index) => {
+      const chip = document.createElement('div');
+      chip.className = `score-chip ${item.type === 'bad' ? 'bad' : 'good'}`;
+      const sign = item.value > 0 ? '+' : '';
+      chip.textContent = `${item.label}: ${sign}${item.value.toFixed(2)}s`;
+      lane.appendChild(chip);
+
+      const appearDelay = index * 120;
+      setTimeout(() => chip.classList.add('show'), appearDelay);
+      setTimeout(() => {
+        chip.classList.remove('show');
+        setTimeout(() => chip.remove(), 180);
+      }, 1900 + appearDelay);
+    });
+  }
+
+  updatePreGameCountdown(seconds) {
+    const countdownEl = document.getElementById('pre-game-countdown-value');
+    if (countdownEl) {
+      countdownEl.textContent = Math.max(0, seconds);
+    }
   }
 
   showGameEnd(totalScore, avgReaction, bestReaction) {
@@ -195,24 +379,32 @@ class UIController {
   }
 
   updateTutorialStep(step) {
-    this.tutorialStep = step;
+    this.tutorialStep = Math.max(0, Math.min(step, this.tutorialSteps.length - 1));
     const stepEl = document.getElementById('tutorial-step');
     if (!stepEl) return;
 
-    if (step < this.tutorialSteps.length) {
-      const stepData = this.tutorialSteps[step];
-      stepEl.innerHTML = `<h2>${stepData.title}</h2><p>${stepData.content}</p>`;
-    }
+    const stepData = this.tutorialSteps[this.tutorialStep];
+    stepEl.innerHTML = `
+      <h2>${stepData.title}</h2>
+      <p>${stepData.content}</p>
+      <div class="tutorial-media-placeholder">${stepData.mediaLabel || 'Animation / video placeholder'}</div>
+    `;
 
     const prevBtn = document.getElementById('tutorial-prev');
     const nextBtn = document.getElementById('tutorial-next');
+    const skipBtn = document.getElementById('tutorial-skip');
 
     if (prevBtn) {
-      prevBtn.style.display = step > 0 ? 'inline-block' : 'none';
+      prevBtn.style.display = this.tutorialStep > 0 ? 'inline-block' : 'none';
     }
+
     if (nextBtn) {
-      nextBtn.style.display = step < this.tutorialSteps.length - 1 ? 'inline-block' : 'inline-block';
-      nextBtn.textContent = step === this.tutorialSteps.length - 1 ? 'finish ↓' : 'next ↓';
+      nextBtn.style.display = 'inline-block';
+      nextBtn.textContent = this.tutorialStep === this.tutorialSteps.length - 1 ? 'Ready' : 'next ↓';
+    }
+
+    if (skipBtn) {
+      skipBtn.style.display = this.tutorialStep < this.tutorialSteps.length - 1 ? 'inline-block' : 'none';
     }
   }
 
@@ -230,34 +422,61 @@ class UIController {
     }
   }
 
-  showLeaderboard(leaderboard, playerName = 'Unknown') {
+  showLeaderboard(leaderboard, playerName = 'Unknown', playerSummary = null) {
     const listEl = document.getElementById('leaderboard-list');
     const nameDisplayEl = document.getElementById('display-player-name');
+    const playerStatsEl = document.getElementById('leaderboard-player-stats');
 
     if (!listEl) return;
     if (nameDisplayEl) {
       nameDisplayEl.textContent = playerName;
+    }
+    if (playerStatsEl) {
+      const hasPlacement = playerSummary && playerSummary.placement;
+      if (hasPlacement) {
+        const placement = playerSummary.placement;
+        const syncText = playerSummary.pendingSync ? 'Sync pending' : 'Synced';
+        playerStatsEl.textContent = `Rank #${placement.rank} of ${placement.totalPlayers} | Top ${placement.topPercent}% | Faster than ${placement.fasterThanCount} players | ${syncText}`;
+        playerStatsEl.classList.remove('hidden');
+      } else {
+        playerStatsEl.classList.add('hidden');
+      }
     }
 
     listEl.innerHTML = '';
 
     if (!leaderboard || leaderboard.length === 0) {
       listEl.innerHTML = '<div style="padding: 2rem; color: #666;">No scores yet</div>';
-      return;
+    } else {
+      leaderboard.forEach((entry) => {
+        const entryEl = document.createElement('div');
+        entryEl.className = 'leaderboard-entry';
+        entryEl.innerHTML = `
+          <div>
+            <span class="leaderboard-rank">#${entry.rank}</span>
+            <span>${entry.name}</span>
+          </div>
+          <div>${entry.score}</div>
+        `;
+        listEl.appendChild(entryEl);
+      });
     }
 
-    leaderboard.forEach((entry) => {
-      const entryEl = document.createElement('div');
-      entryEl.className = 'leaderboard-entry';
-      entryEl.innerHTML = `
+    if (playerSummary && playerSummary.playerData) {
+      const yourRow = document.createElement('div');
+      yourRow.className = `leaderboard-entry your-score${playerSummary.pendingSync ? ' pending-sync' : ''}`;
+      const placementText = playerSummary.placement
+        ? `#${playerSummary.placement.rank}`
+        : '-';
+      yourRow.innerHTML = `
         <div>
-          <span class="leaderboard-rank">#${entry.rank}</span>
-          <span>${entry.name}</span>
+          <span class="leaderboard-rank">${placementText}</span>
+          <span>${playerName || 'Unknown'}</span>
         </div>
-        <div>${entry.score}</div>
+        <div>${playerSummary.playerData.totalScore || 0}</div>
       `;
-      listEl.appendChild(entryEl);
-    });
+      listEl.appendChild(yourRow);
+    }
   }
 
   updateCountdown(seconds) {
@@ -267,23 +486,42 @@ class UIController {
     }
   }
 
-  hideEnterNameButton() {
-    const enterNameBtn = document.getElementById('enter-name-btn');
-    if (enterNameBtn) {
-      enterNameBtn.style.display = 'none';
-    }
+  getLeadFormData() {
+    const nameInput = document.getElementById('lead-name-input');
+    const emailInput = document.getElementById('lead-email-input');
+    const companyInput = document.getElementById('lead-company-input');
+    const consentInput = document.getElementById('lead-consent-input');
+    return {
+      name: nameInput ? nameInput.value.trim() : '',
+      email: emailInput ? emailInput.value.trim() : '',
+      company: companyInput ? companyInput.value.trim() : '',
+      consent: consentInput ? consentInput.checked : false
+    };
   }
 
-  showEnterNameButton() {
-    const enterNameBtn = document.getElementById('enter-name-btn');
-    if (enterNameBtn) {
-      enterNameBtn.style.display = 'inline-block';
-    }
+  clearLeadFormData() {
+    const nameInput = document.getElementById('lead-name-input');
+    const emailInput = document.getElementById('lead-email-input');
+    const companyInput = document.getElementById('lead-company-input');
+    const consentInput = document.getElementById('lead-consent-input');
+    if (nameInput) nameInput.value = '';
+    if (emailInput) emailInput.value = '';
+    if (companyInput) companyInput.value = '';
+    if (consentInput) consentInput.checked = false;
+    this.clearLeadFormError();
   }
 
-  getNameInput() {
-    const inputEl = document.getElementById('name-input');
-    return inputEl ? inputEl.value.trim() : '';
+  showLeadFormError(message) {
+    const errorEl = document.getElementById('lead-form-error');
+    if (!errorEl) return;
+    errorEl.textContent = message;
+    errorEl.classList.remove('hidden');
+  }
+
+  clearLeadFormError() {
+    const errorEl = document.getElementById('lead-form-error');
+    if (!errorEl) return;
+    errorEl.classList.add('hidden');
   }
 
   showIdleWarning() {
@@ -302,6 +540,10 @@ class UIController {
     if (countdownEl) {
       countdownEl.textContent = seconds;
     }
+  }
+
+  hideEnterNameButton() {
+    // Backward-compatible no-op.
   }
 }
 
