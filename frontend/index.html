@@ -4,71 +4,87 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Firefly - Reaction Speed Game</title>
+  <link rel="icon" href="data:,">
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
   <div id="game-container" class="game-container">
     <section id="screen-demo" class="screen screen-demo">
       <div class="screen-shell shell-light">
-        <img src="assets/SVG/Firefly_Lockup_Horz_DarkBlue_RGB.svg" alt="Firefly" class="logo-top">
-        <div class="hero-copy">
-          <h1 id="demo-text" class="hero-title">How fast can you react at moments that matter?</h1>
-          <p id="demo-subtitle" class="hero-subtitle">Play this reaction game to find out</p>
-          <div id="demo-rotator-content" class="demo-rotator-content hidden"></div>
-          <button id="demo-start-btn" class="btn btn-primary start-cta">Click here to start</button>
+        <header class="led-header">
+          <div class="led-row led-row-title"><span id="demo-title" class="led led-title">LEADERBOARD</span></div>
+          <div class="led-row led-row-sub"><span id="demo-subtitle" class="led led-subtitle">COMPETE TO WIN PRIZE! COMPETE TO WIN PRIZE!</span></div>
+        </header>
+
+        <div class="screen-main screen-main-demo">
+          <div id="demo-leaderboard-list" class="leaderboard-list leaderboard-list-demo"></div>
         </div>
+
+        <div class="bottom-cta-wrap">
+          <button id="demo-start-btn" class="btn btn-primary btn-ambient">CLICK TO START</button>
+        </div>
+
+        <img src="assets/SVG/Firefly_Lockup_Horz_DarkBlue_RGB.svg" alt="Firefly" class="logo-watermark logo-watermark-light">
       </div>
     </section>
 
     <section id="screen-welcome" class="screen screen-welcome hidden">
       <div class="screen-shell shell-light center-content">
-        <img src="assets/SVG/Firefly_Lockup_Horz_DarkBlue_RGB.svg" alt="Firefly" class="logo-top">
-        <h1 class="panel-title">Welcome</h1>
-        <p class="panel-copy">Would you like a quick tutorial before the game starts?</p>
-        <div class="button-group">
-          <button id="tutorial-yes" class="btn btn-primary">Yes</button>
-          <button id="tutorial-no" class="btn btn-secondary">No</button>
-        </div>
+        <div class="panel-copy">Welcome</div>
       </div>
     </section>
 
     <section id="screen-tutorial" class="screen screen-tutorial hidden">
-      <div class="screen-shell shell-light tutorial-shell">
-        <div id="tutorial-step" class="tutorial-step"></div>
-        <div class="tutorial-pagination" id="tutorial-pagination"></div>
-        <div class="tutorial-nav">
-          <button id="tutorial-prev" class="btn btn-secondary">Prev</button>
-          <button id="tutorial-skip" class="btn btn-secondary">Skip</button>
-          <button id="tutorial-next" class="btn btn-primary">Next</button>
+      <div class="screen-shell shell-light">
+        <header class="led-header">
+          <div class="led-row led-row-title"><span class="led led-title">TUTORIAL</span></div>
+          <div class="led-row led-row-sub"><span class="led led-subtitle">ARE YOU READY?</span></div>
+        </header>
+
+        <div class="screen-main tutorial-main">
+          <div id="tutorial-step" class="tutorial-step"></div>
         </div>
+
+        <div class="bottom-cta-wrap">
+          <button id="tutorial-next" class="btn btn-primary">I'M READY</button>
+        </div>
+
         <img src="assets/SVG/Firefly_Lockup_Horz_DarkBlue_RGB.svg" alt="Firefly" class="logo-watermark logo-watermark-light">
       </div>
     </section>
 
     <section id="screen-countdown" class="screen screen-countdown hidden">
-      <div class="screen-shell shell-dark countdown-shell">
-        <h2 class="countdown-title">Game starts in...</h2>
-        <div id="pre-game-countdown-value" class="countdown-value">5</div>
+      <div class="screen-shell shell-dark">
+        <header class="led-header">
+          <div class="led-row led-row-title"><span class="led led-title">COUNTDOWN</span></div>
+          <div class="led-row led-row-sub"><span id="pre-game-countdown-value" class="led led-subtitle">3</span></div>
+        </header>
+
+        <div class="screen-main screen-main-countdown">
+          <div id="countdown-grid" class="button-grid button-grid-passive"></div>
+        </div>
+
         <img src="assets/SVG/Firefly_Lockup_Horz_DarkBlue_RGB.svg" alt="Firefly" class="logo-watermark logo-watermark-dark">
       </div>
     </section>
 
     <section id="screen-game" class="screen screen-game hidden">
-      <div class="screen-shell shell-dark game-shell">
-        <header class="game-header">
-          <div class="time-cluster">
-            <div class="round-info">Time Left: <span id="time-left">30</span>s</div>
-            <div id="time-breakdown-anim" class="time-breakdown-anim" aria-live="polite"></div>
+      <div class="screen-shell shell-dark">
+        <header class="led-header game-led-header">
+          <div class="hud-label-row">
+            <span class="hud-label">TIME</span>
+            <span class="hud-label">SCORE</span>
           </div>
-          <div id="game-stats" class="game-stats">Hits 0 | Misses 0 | Wrong 0</div>
-          <div class="score-cluster">
-            <div class="score-info">Score: <span id="current-score">0</span></div>
-            <div id="score-breakdown-anim" class="score-breakdown-anim" aria-live="polite"></div>
+          <div class="led-row led-row-sub hud-value-row">
+            <span id="time-left" class="led hud-value odometer" data-value="30">30</span>
+            <span id="current-score" class="led hud-value odometer" data-value="0">0</span>
+          </div>
+          <div class="led-row led-row-sub game-status-row">
+            <span id="waiting-message" class="led led-subtitle waiting-message">START!!</span>
           </div>
         </header>
 
-        <div id="game-content" class="game-content">
-          <div id="waiting-message" class="waiting-message">Get ready...</div>
+        <div id="game-content" class="screen-main screen-main-game">
           <div id="button-grid" class="button-grid"></div>
         </div>
 
@@ -77,101 +93,110 @@
     </section>
 
     <section id="screen-feedback" class="screen screen-feedback hidden">
-      <div class="screen-shell shell-dark center-content">
-        <div class="feedback-content">
-          <div class="round-info">Round <span id="feedback-round">1</span>/<span id="feedback-total">5</span></div>
-          <div id="feedback-score" class="score-info">Score: <span id="feedback-score-value">0</span></div>
+      <div class="screen-shell shell-dark center-content"></div>
+    </section>
 
-          <div id="feedback-success" class="feedback-success hidden">
-            <div class="score-breakdown">
-              <div>Reaction <span id="reaction-score">+0</span></div>
-              <div>Combo <span id="combo-score">+0</span></div>
-            </div>
-            <div class="reaction-time">You reacted in <span id="reaction-time-value">0.000</span> sec.</div>
-            <div class="feedback-message" id="feedback-message">That was impressive!</div>
+    <section id="screen-score" class="screen screen-score hidden">
+      <div class="screen-shell shell-dark">
+        <header class="led-header">
+          <div class="led-row led-row-title"><span class="led led-title">FINISHED</span></div>
+          <div class="led-row led-row-sub"><span id="score-subtitle" class="led led-subtitle">YOU ARE SO FAST!</span></div>
+        </header>
+
+        <div class="screen-main score-main">
+          <div class="stat-block">
+            <div class="stat-label">YOUR SCORE</div>
+            <div id="final-score" class="led stat-value">0</div>
           </div>
 
-          <div id="feedback-timeout" class="feedback-timeout hidden">
-            <div class="feedback-message">That round timed out. Be ready for the next one.</div>
+          <div class="stat-block">
+            <div class="stat-label">FASTEST REACTION TIME (SEC)</div>
+            <div id="best-reaction" class="led stat-value">0.000</div>
+          </div>
+        </div>
+
+        <div class="bottom-cta-wrap bottom-cta-stack">
+          <button id="score-play-again-btn" class="btn btn-secondary">PLAY AGAIN</button>
+          <button id="score-done-btn" class="btn btn-primary">NEXT</button>
+        </div>
+
+        <img src="assets/SVG/Firefly_Lockup_Horz_DarkBlue_RGB.svg" alt="Firefly" class="logo-watermark logo-watermark-dark">
+      </div>
+    </section>
+
+    <section id="screen-lead-form" class="screen screen-lead-form hidden">
+      <div class="screen-shell shell-light">
+        <header class="led-header">
+          <div class="led-row led-row-title"><span class="led led-title">YOUR INFO</span></div>
+          <div class="led-row led-row-sub"><span class="led led-subtitle">ENTER YOUR INFO WIN A PRIZE</span></div>
+        </header>
+
+        <div class="screen-main lead-main">
+          <div class="lead-form-fields">
+            <label class="field-label" for="lead-first-name-input">FIRST NAME</label>
+            <input type="text" id="lead-first-name-input" class="name-input led" maxlength="40" inputmode="none" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" readonly>
+
+            <label class="field-label" for="lead-last-name-input">LAST NAME</label>
+            <input type="text" id="lead-last-name-input" class="name-input led" maxlength="40" inputmode="none" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" readonly>
+
+            <label class="field-label" for="lead-email-input">EMAIL</label>
+            <input type="text" id="lead-email-input" class="name-input led" maxlength="254" inputmode="none" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" readonly>
+
+            <label class="consent-row" for="lead-consent-input">
+              <input type="checkbox" id="lead-consent-input" checked>
+              <span>ADD ME TO THE MAILING LIST!</span>
+            </label>
+            <div id="lead-form-error" class="lead-form-error hidden">Please enter first name, last name, and a valid email.</div>
+            <div id="touch-keyboard" class="touch-keyboard"></div>
+          </div>
+        </div>
+
+        <div class="bottom-cta-wrap bottom-cta-stack">
+          <button id="lead-submit-btn" class="btn btn-primary">NEXT</button>
+          <button id="lead-back-btn" class="btn btn-secondary">BACK</button>
+        </div>
+
+        <img src="assets/SVG/Firefly_Lockup_Horz_DarkBlue_RGB.svg" alt="Firefly" class="logo-watermark logo-watermark-light">
+      </div>
+    </section>
+
+    <section id="screen-leaderboard" class="screen screen-leaderboard hidden">
+      <div class="screen-shell shell-light">
+        <header class="led-header">
+          <div class="led-row led-row-title"><span class="led led-title">LEADERBOARD</span></div>
+          <div class="led-row led-row-sub"><span id="leaderboard-subtitle" class="led led-subtitle">YOU BEAT 0% OF THE PLAYERS</span></div>
+        </header>
+
+        <div class="screen-main screen-main-demo">
+          <div id="leaderboard-list" class="leaderboard-list"></div>
+        </div>
+
+        <div class="bottom-cta-wrap bottom-cta-stack">
+          <button id="leaderboard-done-btn" class="btn btn-primary">DONE (20)</button>
+        </div>
+
+        <img src="assets/SVG/Firefly_Lockup_Horz_DarkBlue_RGB.svg" alt="Firefly" class="logo-watermark logo-watermark-light">
+      </div>
+    </section>
+
+    <section id="screen-idle-warning" class="screen screen-idle-warning hidden">
+      <div class="screen-shell shell-dark">
+        <header class="led-header">
+          <div class="led-row led-row-title"><span class="led led-title">PAUSED</span></div>
+          <div class="led-row led-row-sub"><span class="led led-subtitle">ARE YOU STILL HERE?</span></div>
+        </header>
+        <div class="screen-main center-content">
+          <div class="idle-warning-content">
+            <div class="idle-countdown">RETURNING TO DEMO IN <span id="idle-countdown-value">20</span></div>
+            <button id="resume-btn" class="btn btn-primary">RESUME</button>
           </div>
         </div>
         <img src="assets/SVG/Firefly_Lockup_Horz_DarkBlue_RGB.svg" alt="Firefly" class="logo-watermark logo-watermark-dark">
       </div>
     </section>
 
-    <section id="screen-score" class="screen screen-score hidden">
-      <div class="screen-shell shell-light center-content">
-        <div class="score-content">
-          <h1 class="panel-title">Game Over</h1>
-          <div class="final-score">Final Score: <span id="final-score">0</span></div>
-          <p class="panel-copy">Enter your contact info next to see how you compare on the leaderboard.</p>
-          <div class="final-stats">
-            <div>Average Reaction: <span id="avg-reaction">0.000</span>s</div>
-            <div>Best Reaction: <span id="best-reaction">0.000</span>s</div>
-          </div>
-          <div class="button-group">
-            <button id="score-play-again-btn" class="btn btn-primary">Play Again</button>
-            <button id="score-done-btn" class="btn btn-secondary">Enter Contact Info</button>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section id="screen-lead-form" class="screen screen-lead-form hidden">
-      <div class="screen-shell shell-light center-content">
-        <div class="lead-form-content">
-          <h1 class="panel-title">See How You Compare</h1>
-          <p class="panel-copy">Enter your info to view the leaderboard.</p>
-          <div class="lead-form-fields">
-            <input type="text" id="lead-name-input" class="name-input" placeholder="Your name" maxlength="60" inputmode="none" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" readonly>
-            <input type="text" id="lead-email-input" class="name-input" placeholder="Email" maxlength="254" inputmode="none" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" readonly>
-            <input type="text" id="lead-company-input" class="name-input" placeholder="Company" maxlength="80" inputmode="none" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" readonly>
-            <label class="consent-row">
-              <input type="checkbox" id="lead-consent-input">
-              <span>I agree to receive newsletter and promo material.</span>
-            </label>
-            <div id="lead-form-error" class="lead-form-error hidden">Please enter name, valid email, and company.</div>
-          </div>
-          <div id="touch-keyboard" class="touch-keyboard"></div>
-          <div class="button-group">
-            <button id="lead-submit-btn" class="btn btn-primary">View leaderboard</button>
-            <button id="lead-back-btn" class="btn btn-secondary">Back</button>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section id="screen-leaderboard" class="screen screen-leaderboard hidden">
-      <div class="screen-shell shell-light center-content">
-        <div class="leaderboard-content">
-          <h1 class="panel-title">Leaderboard</h1>
-          <div class="player-name-section player-name-display">
-            <span>Your name: <strong id="display-player-name">Unknown</strong></span>
-          </div>
-          <div id="leaderboard-player-stats" class="leaderboard-player-stats hidden"></div>
-          <div id="leaderboard-list" class="leaderboard-list"></div>
-          <div class="button-group">
-            <button id="play-again-btn" class="btn btn-primary">Play Again</button>
-            <button id="leaderboard-done-btn" class="btn btn-secondary">Done</button>
-          </div>
-          <div id="leaderboard-countdown" class="countdown-timer">
-            Returning to demo in <span id="countdown-value">20</span> seconds
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section id="screen-idle-warning" class="screen screen-idle-warning hidden">
-      <div class="screen-shell shell-dark center-content">
-        <div class="idle-warning-content">
-          <h1>Are you still here?</h1>
-          <div class="idle-countdown">
-            Returning to demo in <span id="idle-countdown-value">20</span> seconds
-          </div>
-          <button id="resume-btn" class="btn btn-primary">Resume</button>
-        </div>
-      </div>
-    </section>
+    <button id="leaderboard-back-top-btn" class="btn btn-secondary back-top-btn hidden">BACK TO TOP</button>
+    <img src="assets/SVG/Firefly_Lockup_Horz_DarkBlue_RGB.svg" alt="Firefly" class="global-logo-watermark">
   </div>
 
   <script src="js/config.js"></script>

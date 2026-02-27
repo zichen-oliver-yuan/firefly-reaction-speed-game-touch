@@ -12,12 +12,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function setupTouchKeyboard() {
   const keyboardContainer = document.getElementById('touch-keyboard');
-  const nameInput = document.getElementById('lead-name-input');
+  const firstNameInput = document.getElementById('lead-first-name-input');
+  const lastNameInput = document.getElementById('lead-last-name-input');
   const emailInput = document.getElementById('lead-email-input');
-  const companyInput = document.getElementById('lead-company-input');
-  if (!keyboardContainer || !nameInput || !emailInput || !companyInput) return;
 
-  window.touchKeyboard = new TouchKeyboard(nameInput);
+  if (!keyboardContainer || !firstNameInput || !lastNameInput || !emailInput) return;
+
+  window.touchKeyboard = new TouchKeyboard(firstNameInput);
   window.touchKeyboard.init(keyboardContainer);
 
   const bindInput = (input) => {
@@ -32,6 +33,7 @@ function setupTouchKeyboard() {
       }
       input.focus({ preventScroll: true });
     });
+
     input.addEventListener('focus', () => {
       if (window.touchKeyboard) {
         window.touchKeyboard.input = input;
@@ -41,6 +43,7 @@ function setupTouchKeyboard() {
         input.setSelectionRange(end, end);
       }
     });
+
     input.addEventListener('input', () => {
       if (window.game) {
         window.game.handleUserAction();
@@ -51,9 +54,9 @@ function setupTouchKeyboard() {
     });
   };
 
-  bindInput(nameInput);
+  bindInput(firstNameInput);
+  bindInput(lastNameInput);
   bindInput(emailInput);
-  bindInput(companyInput);
 }
 
 function isValidEmail(email) {
@@ -66,62 +69,31 @@ function setupEventHandlers() {
   const bindPress = (element, handler) => {
     if (!element) return;
     let lastPressTs = 0;
-    const run = (event, prevent = true) => {
+
+    const run = (event) => {
       const now = Date.now();
       if (now - lastPressTs < 280) return;
       lastPressTs = now;
-      if (prevent) {
-        event.preventDefault();
-      }
+      event.preventDefault();
       handler(event);
     };
 
-    element.addEventListener('pointerdown', (event) => run(event, true));
-    element.addEventListener('click', (event) => run(event, false));
+    // Touch kiosk flow: pointerdown only to avoid ghost click on the next screen.
+    element.addEventListener('pointerdown', run);
   };
 
   const demoStartBtn = document.getElementById('demo-start-btn');
   bindPress(demoStartBtn, () => {
     if (window.game) {
       window.game.resetGame();
-      window.game.setState(window.GameState.WELCOME);
-    }
-  });
-
-  const tutorialYesBtn = document.getElementById('tutorial-yes');
-  const tutorialNoBtn = document.getElementById('tutorial-no');
-
-  bindPress(tutorialYesBtn, () => {
-    if (window.game) {
       window.game.setState(window.GameState.TUTORIAL);
     }
   });
 
-  bindPress(tutorialNoBtn, () => {
-    if (window.game) {
-      window.game.skipTutorial();
-    }
-  });
-
-  const tutorialPrevBtn = document.getElementById('tutorial-prev');
   const tutorialNextBtn = document.getElementById('tutorial-next');
-  const tutorialSkipBtn = document.getElementById('tutorial-skip');
-
-  bindPress(tutorialPrevBtn, () => {
-    if (window.ui) {
-      window.ui.prevTutorialStep();
-    }
-  });
-
   bindPress(tutorialNextBtn, () => {
     if (window.ui) {
       window.ui.nextTutorialStep();
-    }
-  });
-
-  bindPress(tutorialSkipBtn, () => {
-    if (window.game) {
-      window.game.skipTutorial();
     }
   });
 
@@ -158,7 +130,7 @@ function setupEventHandlers() {
 
   bindPress(leadBackBtn, () => {
     if (window.game) {
-      window.game.setState(window.GameState.SHOW_SCORE);
+      window.game.setState(window.GameState.SHOW_SCORE, { direction: 'back' });
     }
   });
 
@@ -167,41 +139,60 @@ function setupEventHandlers() {
     if (leadSubmitInFlight) return;
 
     const data = window.ui.getLeadFormData();
-    if (!data.name || !data.company || !isValidEmail(data.email)) {
-      window.ui.showLeadFormError('Please enter name, valid email, and company.');
+    if (!data.firstName || !data.lastName || !isValidEmail(data.email)) {
+      window.ui.showLeadFormError('Please enter first name, last name, and a valid email.');
       return;
     }
 
     leadSubmitInFlight = true;
     try {
-      window.game.playerName = data.name;
+      const fullName = `${data.firstName} ${data.lastName}`.trim();
+      window.game.playerName = fullName;
+      window.game.playerFirstName = data.firstName.trim();
+      window.game.playerLastName = data.lastName.trim();
       window.game.playerEmail = data.email.toLowerCase();
-      window.game.playerCompany = data.company;
+      window.game.playerCompany = '';
       window.game.newsletterOptIn = !!data.consent;
 
       const playerData = window.game.buildPlayerData();
-      const placement = window.game.getPlayerPlacement(playerData);
+      const cachedRemoteLeaderboard = window.game.getCachedRemoteLeaderboard(1000);
+      const placement = cachedRemoteLeaderboard.length > 0
+        ? window.game.getPlayerPlacementAgainstLeaderboard(playerData, cachedRemoteLeaderboard)
+        : window.game.getPlayerPlacement(playerData);
       const playerSummary = {
         playerData,
         placement,
         pendingSync: true
       };
-      const localLeaderboard = window.game.getLocalLeaderboard(10);
-      window.ui.showLeaderboard(localLeaderboard, data.name, playerSummary);
       window.game.setState(window.GameState.SHOW_LEADERBOARD);
+      if (cachedRemoteLeaderboard.length > 0) {
+        window.ui.showLeaderboard(cachedRemoteLeaderboard, fullName, playerSummary);
+      } else {
+        window.ui.showLeaderboardLoading();
+      }
       window.game.startLeaderboardCountdown();
       window.game.handleUserAction();
 
-      const saveTask = window.game.saveScoreInBackground(playerData);
-      let displayedLeaderboard = localLeaderboard;
-      const remoteLeaderboard = await window.game.getRemoteLeaderboard(10);
-      if (remoteLeaderboard && remoteLeaderboard.length > 0) {
-        displayedLeaderboard = remoteLeaderboard;
-        window.ui.showLeaderboard(remoteLeaderboard, data.name, playerSummary);
-      }
-      await saveTask;
-      playerSummary.pendingSync = window.game.isScorePending(playerData.scoreId);
-      window.ui.showLeaderboard(displayedLeaderboard, data.name, playerSummary);
+      window.game.saveScoreInBackground(playerData).catch((error) => {
+        console.error('Background save failed:', error);
+      });
+
+      window.game.refreshRemoteLeaderboardInBackground(1000).then((remoteLeaderboard) => {
+        const stillShowingLeaderboard = window.game
+          && window.game.state === window.GameState.SHOW_LEADERBOARD;
+        if (!stillShowingLeaderboard) return;
+
+        playerSummary.pendingSync = window.game.isScorePending(playerData.scoreId);
+        if (remoteLeaderboard && remoteLeaderboard.length > 0) {
+          playerSummary.placement = window.game.getPlayerPlacementAgainstLeaderboard(playerData, remoteLeaderboard);
+          window.ui.showLeaderboard(remoteLeaderboard, fullName, playerSummary);
+          return;
+        }
+
+        if (cachedRemoteLeaderboard.length === 0) {
+          window.ui.showLeaderboardError('NO SCORES YET');
+        }
+      });
     } finally {
       leadSubmitInFlight = false;
     }
@@ -245,7 +236,7 @@ function setupEventHandlers() {
     });
   }
 
-  document.addEventListener('click', (event) => {
+  document.addEventListener('click', () => {
     if (window.game) {
       window.game.handleUserAction();
     }

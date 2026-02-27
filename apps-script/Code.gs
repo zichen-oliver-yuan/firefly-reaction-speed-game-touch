@@ -13,6 +13,8 @@ const SHEET_NAME = 'Scores';
 const SOURCE_VALUE = 'reaction-speed-game';
 const MAX_REACTION_TIMES = 200;
 const MAX_NAME_LENGTH = 60;
+const MAX_FIRST_NAME_LENGTH = 40;
+const MAX_LAST_NAME_LENGTH = 40;
 const MAX_EMAIL_LENGTH = 254;
 const MAX_COMPANY_LENGTH = 80;
 const HEADERS = [
@@ -20,6 +22,8 @@ const HEADERS = [
   'timestamp',
   'sessionId',
   'name',
+  'firstName',
+  'lastName',
   'email',
   'company',
   'newsletterOptIn',
@@ -54,6 +58,9 @@ function doPost(e) {
     if (action === 'syncStatus') {
       return handleSyncStatus(payload);
     }
+    if (action === 'seedFakeData') {
+      return handleSeedFakeData(payload);
+    }
 
     return jsonResponse({ ok: false, error: 'Unknown action' });
   } catch (err) {
@@ -65,7 +72,12 @@ function handleSubmitScore(payload) {
   const scoreId = normalizeString(payload.scoreId, 128);
   const timestamp = normalizeTimestamp(payload.timestamp);
   const sessionId = normalizeString(payload.sessionId, 128);
-  const name = normalizeString(payload.name, MAX_NAME_LENGTH);
+  const firstNameRaw = normalizeString(payload.firstName, MAX_FIRST_NAME_LENGTH);
+  const lastNameRaw = normalizeString(payload.lastName, MAX_LAST_NAME_LENGTH);
+  const fallbackName = normalizeString(payload.name, MAX_NAME_LENGTH);
+  const firstName = firstNameRaw || getFirstNameFromFullName(fallbackName);
+  const lastName = lastNameRaw || getLastNameFromFullName(fallbackName);
+  const name = normalizeString((firstName + ' ' + lastName).trim() || fallbackName, MAX_NAME_LENGTH);
   const email = normalizeEmail(payload.email);
   const company = normalizeString(payload.company, MAX_COMPANY_LENGTH);
   const newsletterOptIn = normalizeConsent(payload.newsletterOptIn);
@@ -98,6 +110,8 @@ function handleSubmitScore(payload) {
   row[colMap.timestamp] = timestamp;
   row[colMap.sessionId] = sessionId;
   row[colMap.name] = name;
+  row[colMap.firstName] = firstName;
+  row[colMap.lastName] = lastName;
   row[colMap.email] = email;
   row[colMap.company] = company;
   row[colMap.newsletterOptIn] = newsletterOptIn;
@@ -120,8 +134,8 @@ function handleSubmitScore(payload) {
 
 function handleGetLeaderboard(payload) {
   const limitRaw = toInt(payload.limit);
-  const limit = Math.max(1, Math.min(100, limitRaw || 10));
-  const sheet = getScoresSheet();
+  const limit = Math.max(1, Math.min(5000, limitRaw || 1000));
+  const sheet = getLeaderboardSheet(payload);
   const values = sheet.getDataRange().getValues();
 
   if (values.length <= 1) {
@@ -160,6 +174,26 @@ function handleGetLeaderboard(payload) {
   return jsonResponse({ ok: true, leaderboard: sorted });
 }
 
+function getLeaderboardSheet(payload) {
+  const requested = normalizeString(payload && payload.table, 64).toLowerCase();
+  if (requested === 'fake') {
+    const fake = getSheetByName('Scores_Fake');
+    if (fake) return fake;
+  }
+
+  const scores = getScoresSheet();
+  if (scores.getLastRow() > 1) {
+    return scores;
+  }
+
+  const fakeFallback = getSheetByName('Scores_Fake');
+  if (fakeFallback && fakeFallback.getLastRow() > 1) {
+    return fakeFallback;
+  }
+
+  return scores;
+}
+
 function handleSyncStatus(payload) {
   const requested = Array.isArray(payload.scoreIds) ? payload.scoreIds : [];
   if (requested.length === 0) {
@@ -195,6 +229,112 @@ function handleSyncStatus(payload) {
   });
 
   return jsonResponse({ ok: true, ackedScoreIds: acked });
+}
+
+function handleSeedFakeData(payload) {
+  const count = Math.max(10, Math.min(500, toInt(payload.count || 120)));
+  const target = normalizeString(payload.target, 64).toLowerCase();
+
+  if (target === 'scores') {
+    seedScoresWithFakeData(count);
+    return jsonResponse({ ok: true, status: 'seeded_scores', count: count });
+  }
+
+  seedFakeLeaderboardTable(count);
+  return jsonResponse({ ok: true, status: 'seeded_fake_table', count: count, sheetName: 'Scores_Fake' });
+}
+
+function seedFakeLeaderboardTable(count) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheetName = 'Scores_Fake';
+  let sheet = ss.getSheetByName(sheetName);
+  if (!sheet) {
+    sheet = ss.insertSheet(sheetName);
+  }
+
+  sheet.clear();
+  sheet.appendRow(HEADERS);
+
+  const rows = generateFakeRows(count);
+  if (rows.length > 0) {
+    sheet.getRange(2, 1, rows.length, HEADERS.length).setValues(rows);
+  }
+}
+
+function seedScoresWithFakeData(count) {
+  ensureScoreSheetHeaders();
+  const sheet = getScoresSheet();
+  const header = getHeaderRow(sheet);
+  const colMap = getColumnMap(header);
+  const rows = generateFakeRows(count);
+  if (rows.length === 0) return;
+
+  const maxCols = Math.max(sheet.getLastColumn(), HEADERS.length);
+  const out = rows.map(function (fakeRow) {
+    const row = new Array(maxCols).fill('');
+    row[colMap.scoreId] = fakeRow[0];
+    row[colMap.timestamp] = fakeRow[1];
+    row[colMap.sessionId] = fakeRow[2];
+    row[colMap.name] = fakeRow[3];
+    row[colMap.firstName] = fakeRow[4];
+    row[colMap.lastName] = fakeRow[5];
+    row[colMap.email] = fakeRow[6];
+    row[colMap.company] = fakeRow[7];
+    row[colMap.newsletterOptIn] = fakeRow[8];
+    row[colMap.totalScore] = fakeRow[9];
+    row[colMap.averageReactionTime] = fakeRow[10];
+    row[colMap.bestReactionTime] = fakeRow[11];
+    row[colMap.reactionTimesJson] = fakeRow[12];
+    row[colMap.rounds] = fakeRow[13];
+    row[colMap.source] = fakeRow[14];
+    return row;
+  });
+
+  sheet.getRange(sheet.getLastRow() + 1, 1, out.length, maxCols).setValues(out);
+}
+
+function generateFakeRows(count) {
+  var firstNames = ['Alex', 'Jordan', 'Taylor', 'Casey', 'Riley', 'Morgan', 'Avery', 'Quinn', 'Hayden', 'Skyler'];
+  var lastNames = ['Lee', 'Chen', 'Patel', 'Nguyen', 'Garcia', 'Kim', 'Johnson', 'Brown', 'Miller', 'Davis'];
+  var companies = ['Firefly Labs', 'NovaTech', 'BlueOrbit', 'Peak Systems', 'BrightOps', 'Vertex AI', 'Orbitron', 'Pinecone', 'Luma', 'Aster'];
+
+  var rows = [];
+  for (var i = 0; i < count; i += 1) {
+    var first = firstNames[i % firstNames.length];
+    var last = lastNames[(i * 3) % lastNames.length];
+    var name = first + ' ' + last;
+    var email = (first + '.' + last + (i + 1) + '@example.com').toLowerCase();
+    var company = companies[(i * 7) % companies.length];
+    var score = Math.max(500, 18000 - (i * 97));
+    var avg = Number((0.18 + ((i % 17) * 0.012)).toFixed(3));
+    var best = Number(Math.max(0.11, avg - 0.06).toFixed(3));
+    var now = new Date();
+    now.setMinutes(now.getMinutes() - i);
+    var timestamp = now.toISOString();
+    var scoreId = 'fake_score_' + (i + 1);
+    var sessionId = 'fake_session_' + (i + 1);
+    var rounds = 25;
+    var reactionTimes = [best, avg, Number((avg + 0.04).toFixed(3))];
+
+    rows.push([
+      scoreId,
+      timestamp,
+      sessionId,
+      name,
+      first,
+      last,
+      email,
+      company,
+      (i % 3 === 0) ? 'Yes' : 'No',
+      score,
+      avg,
+      best,
+      JSON.stringify(reactionTimes),
+      rounds,
+      'fake_seed'
+    ]);
+  }
+  return rows;
 }
 
 function ensureScoreSheetHeaders() {
@@ -235,16 +375,33 @@ function getColumnMap(header) {
     timestamp: getColumnIndex(header, 'timestamp', 1),
     sessionId: getColumnIndex(header, 'sessionid', 2),
     name: getColumnIndex(header, 'name', 3),
-    email: getColumnIndex(header, 'email', 4),
-    company: getColumnIndex(header, 'company', 5),
-    newsletterOptIn: getColumnIndex(header, 'newsletteroptin', 6),
-    totalScore: getColumnIndex(header, 'totalscore', 7),
-    averageReactionTime: getColumnIndex(header, 'averagereactiontime', 8),
-    bestReactionTime: getColumnIndex(header, 'bestreactiontime', 9),
-    reactionTimesJson: getColumnIndex(header, 'reactiontimesjson', 10),
-    rounds: getColumnIndex(header, 'rounds', 11),
-    source: getColumnIndex(header, 'source', 12)
+    firstName: getColumnIndex(header, 'firstname', 4),
+    lastName: getColumnIndex(header, 'lastname', 5),
+    email: getColumnIndex(header, 'email', 6),
+    company: getColumnIndex(header, 'company', 7),
+    newsletterOptIn: getColumnIndex(header, 'newsletteroptin', 8),
+    totalScore: getColumnIndex(header, 'totalscore', 9),
+    averageReactionTime: getColumnIndex(header, 'averagereactiontime', 10),
+    bestReactionTime: getColumnIndex(header, 'bestreactiontime', 11),
+    reactionTimesJson: getColumnIndex(header, 'reactiontimesjson', 12),
+    rounds: getColumnIndex(header, 'rounds', 13),
+    source: getColumnIndex(header, 'source', 14)
   };
+}
+
+function getFirstNameFromFullName(fullName) {
+  var cleaned = normalizeString(fullName, MAX_NAME_LENGTH);
+  if (!cleaned) return '';
+  var parts = cleaned.split(/\s+/);
+  return normalizeString(parts[0] || '', MAX_FIRST_NAME_LENGTH);
+}
+
+function getLastNameFromFullName(fullName) {
+  var cleaned = normalizeString(fullName, MAX_NAME_LENGTH);
+  if (!cleaned) return '';
+  var parts = cleaned.split(/\s+/);
+  if (parts.length < 2) return '';
+  return normalizeString(parts.slice(1).join(' '), MAX_LAST_NAME_LENGTH);
 }
 
 function getColumnIndex(header, key, fallback) {
@@ -272,6 +429,11 @@ function getScoresSheet() {
     sheet = ss.insertSheet(SHEET_NAME);
   }
   return sheet;
+}
+
+function getSheetByName(name) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  return ss.getSheetByName(name);
 }
 
 function normalizeConsent(value) {

@@ -3,7 +3,8 @@ const CONFIG = {
     mode: 'appsScript',
     appsScriptUrl: 'https://script.google.com/macros/s/AKfycbyNtJMXcULh7-7VR0FFa6SGJ43t9uqonTCXW8JeV-KdNRPsuyNVaQRHaDCdXY3OGmdE/exec',
     sharedToken: 'm6ehUrjFG1ZagN0',
-    timeoutMs: 3000,
+    timeoutMs: 5000,
+    leaderboardTimeoutMs: 12000,
     syncIntervalMs: 15000
   },
   game: {
@@ -14,15 +15,19 @@ const CONFIG = {
     moleVisibleEndMs: 550,
     spawnGapStartMs: 900,
     spawnGapEndMs: 180,
+    difficultyRampExponent: 0.65,
+    redButtonProbability: 0.18,
     timeBonusFastSec: 1.2,
     timeBonusGoodSec: 0.7,
     timeBonusSlowSec: 0.25,
     timePenaltyWrongSec: 0.8,
     timePenaltyMissSec: 1.1,
+    timePenaltyRedSec: 1.4,
     fastHitThresholdSec: 0.22,
     goodHitThresholdSec: 0.45,
     hitScore: 300,
     missPenalty: 120,
+    redPressPenalty: 420,
     minReactionTime: 0.1,
     maxReactionTime: 0.8,
     minWaitTime: 1.0,
@@ -30,10 +35,12 @@ const CONFIG = {
     preGameCountdownSeconds: 3,
     wrongPressPenalty: 200,
     gridPressCooldownMs: 120,
+    disableInactivityTimers: false,
     idleTimeout: 20000,
     idleWarningThresholdSeconds: 20,
     idleWarningCountdownSeconds: 20,
     leaderboardCountdownEnabled: true,
+    leaderboardCountdownIdleDelayMs: 5000,
     leaderboardCountdownSeconds: 20
   }
 };

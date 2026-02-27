@@ -42,9 +42,27 @@ If you want centralized gamer info + leaderboard in Google Sheets:
    - Who has access: `Anyone`
 5. Copy the Web App URL into `googleSheets.appsScriptUrl`.
 
+### Fake data for scroll testing
+
+To generate fake leaderboard rows in Google Sheets, call the Apps Script endpoint with action `seedFakeData`:
+
+- `target: "fake"` creates/refreshes a `Scores_Fake` table with fake rows.
+- `target: "scores"` appends fake rows into `Scores` (used by live leaderboard reads).
+ - `getLeaderboard` reads `Scores` by default; if `Scores` is empty, it falls back to `Scores_Fake`.
+
+Example request body:
+
+```json
+{
+  "action": "seedFakeData",
+  "payload": { "target": "scores", "count": 120 },
+  "token": "YOUR_SHARED_TOKEN_HERE"
+}
+```
+
 Sheet tab `Scores` is auto-created with columns:
 
-`scoreId, timestamp, sessionId, name, email, company, newsletterOptIn, totalScore, averageReactionTime, bestReactionTime, reactionTimesJson, rounds, source`
+`scoreId, timestamp, sessionId, name, firstName, lastName, email, company, newsletterOptIn, totalScore, averageReactionTime, bestReactionTime, reactionTimesJson, rounds, source`
 
 ### 3. Serve the frontend
 
@@ -91,6 +109,22 @@ reaction-speed-game/
 - Leaderboard reads prefer server data; local cache is used as offline fallback.
 - Consent is optional and defaults to `No` when unchecked or missing.
 - Best experience is full-screen kiosk mode on the display browser.
+
+## Screenshot Handoff
+
+Generate a full designer handoff screenshot pack (current UI states and key variants):
+
+```bash
+npm install
+npx playwright install chromium
+npm run screenshots
+```
+
+Outputs are saved to `frontend/screenshots/`:
+
+- Numbered PNG screenshots at `1080x1920`
+- `index.md` mapping each file to its scenario
+- Legacy/unreachable UI states are included and labeled in the manifest
 
 ## License
 

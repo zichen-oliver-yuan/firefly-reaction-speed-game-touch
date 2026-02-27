@@ -5,6 +5,17 @@ class SheetsClient {
     this.initialized = false;
     this.config = CONFIG.googleSheets || {};
     this.timeoutMs = this.config.timeoutMs || 6000;
+    this.leaderboardTimeoutMs = this.config.leaderboardTimeoutMs || this.timeoutMs;
+    this.warnCooldownMs = 30000;
+    this.lastWarnByKey = new Map();
+  }
+
+  warnWithCooldown(key, ...args) {
+    const now = Date.now();
+    const last = this.lastWarnByKey.get(key) || 0;
+    if (now - last < this.warnCooldownMs) return;
+    this.lastWarnByKey.set(key, now);
+    console.warn(...args);
   }
 
   /**
@@ -41,7 +52,8 @@ class SheetsClient {
     }
 
     const controller = new AbortController();
-    const timeoutHandle = setTimeout(() => controller.abort(), this.timeoutMs);
+    const timeoutMs = action === 'getLeaderboard' ? this.leaderboardTimeoutMs : this.timeoutMs;
+    const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
       const response = await fetch(this.config.appsScriptUrl, {
@@ -59,13 +71,13 @@ class SheetsClient {
 
       const data = await response.json();
       if (!response.ok || !data || data.ok !== true) {
-        console.warn('Apps Script request failed:', action, data);
+        this.warnWithCooldown(`bad_response:${action}`, 'Apps Script request failed:', action, data);
         return null;
       }
       return data;
     } catch (error) {
       const reason = error && error.name === 'AbortError' ? 'timed out' : error.message;
-      console.warn(`Apps Script request ${action} failed:`, reason);
+      this.warnWithCooldown(`request_error:${action}:${reason}`, `Apps Script request ${action} failed:`, reason);
       return null;
     } finally {
       clearTimeout(timeoutHandle);
@@ -83,6 +95,8 @@ class SheetsClient {
       timestamp: playerData.timestamp || new Date().toISOString(),
       sessionId: playerData.sessionId || playerData.id || '',
       name: playerData.name || 'Unknown',
+      firstName: (playerData.firstName || '').trim(),
+      lastName: (playerData.lastName || '').trim(),
       email: (playerData.email || '').trim().toLowerCase(),
       company: playerData.company || '',
       newsletterOptIn: playerData.newsletterOptIn === 'Yes' || playerData.newsletterOptIn === true,
@@ -93,7 +107,20 @@ class SheetsClient {
       rounds: Number(playerData.rounds) || 0
     };
 
-    return this.request('submitScore', payload);
+    const response = await this.request('submitScore', payload);
+    if (!response) return null;
+
+    // Backward compatibility: older Apps Script returned only { ok: true }.
+    if (!response.status) {
+      return {
+        ...response,
+        status: 'inserted',
+        scoreId: payload.scoreId || '',
+        serverTimestamp: payload.timestamp
+      };
+    }
+
+    return response;
   }
 
   async syncStatus(scoreIds = []) {
@@ -110,7 +137,10 @@ class SheetsClient {
    * @returns {Promise<Array>} Leaderboard rows
    */
   async getLeaderboard(limit = 10) {
-    const response = await this.request('getLeaderboard', { limit });
+    let response = await this.request('getLeaderboard', { limit });
+    if (!response) {
+      response = await this.request('getLeaderboard', { limit });
+    }
     if (!response || !Array.isArray(response.leaderboard)) {
       return [];
     }

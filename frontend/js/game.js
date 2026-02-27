@@ -21,6 +21,7 @@ class Game {
     this.reactionTimes = [];
     this.currentReactionStart = null;
     this.activeMoleIndex = null;
+    this.activeMoleType = 'good';
     this.moleVisibleTimeout = null;
     this.moleSpawnTimeout = null;
     this.sessionCountdownInterval = null;
@@ -44,10 +45,16 @@ class Game {
     this.timeBonusSlowMs = Math.round((CONFIG.game.timeBonusSlowSec || 0.25) * 1000);
     this.timePenaltyWrongMs = Math.round((CONFIG.game.timePenaltyWrongSec || 0.8) * 1000);
     this.timePenaltyMissMs = Math.round((CONFIG.game.timePenaltyMissSec || 1.1) * 1000);
+    this.timePenaltyRedMs = Math.round((CONFIG.game.timePenaltyRedSec || 1.4) * 1000);
     this.fastHitThresholdSec = CONFIG.game.fastHitThresholdSec || 0.22;
     this.goodHitThresholdSec = CONFIG.game.goodHitThresholdSec || 0.45;
+    this.redButtonProbability = CONFIG.game.redButtonProbability || 0.18;
+    this.redPressPenalty = CONFIG.game.redPressPenalty || 420;
+    this.difficultyRampExponent = CONFIG.game.difficultyRampExponent || 0.65;
 
     this.playerName = '';
+    this.playerFirstName = '';
+    this.playerLastName = '';
     this.playerEmail = '';
     this.playerCompany = '';
     this.newsletterOptIn = false;
@@ -56,6 +63,8 @@ class Game {
 
     this.idleTimer = null;
     this.countdownInterval = null;
+    this.leaderboardCountdownStartTimeout = null;
+    this.leaderboardCountdownIdleDelayMs = (CONFIG.game && CONFIG.game.leaderboardCountdownIdleDelayMs) || 5000;
     this.idleWarningTimer = null;
     this.idleCountdownInterval = null;
     this.lastUserAction = Date.now();
@@ -63,6 +72,7 @@ class Game {
     this.scoring = new ScoringSystem();
     this.sheets = new SheetsClient();
     this.localStorage = new LocalStorageBackup();
+    this.demoLeaderboardDirty = true;
     this.syncInterval = null;
     this.syncInFlight = false;
     this.syncIntervalMs = (CONFIG.googleSheets && CONFIG.googleSheets.syncIntervalMs) || 15000;
@@ -80,13 +90,14 @@ class Game {
     this.setState(window.GameState.DEMO);
   }
 
-  setState(newState) {
+  setState(newState, nav = {}) {
     const oldState = this.state;
+    console.log(`[GAME] state change: ${oldState} -> ${newState}`);
     this.state = newState;
     this.onStateEnter(newState, oldState);
 
     if (window.ui) {
-      window.ui.updateState(newState);
+      window.ui.updateState(newState, nav);
     }
   }
 
@@ -116,7 +127,7 @@ class Game {
       this.endGame();
     }
 
-    if (newState === window.GameState.LEAD_FORM || newState === window.GameState.SHOW_LEADERBOARD) {
+    if (newState === window.GameState.SHOW_LEADERBOARD) {
       this.startIdleDetection();
     }
   }
@@ -158,6 +169,8 @@ class Game {
     this.wrongWhacks = 0;
     this.molesSpawned = 0;
     this.playerName = '';
+    this.playerFirstName = '';
+    this.playerLastName = '';
     this.playerEmail = '';
     this.playerCompany = '';
     this.newsletterOptIn = false;
@@ -201,6 +214,7 @@ class Game {
       timeRemaining: this.getDisplayTimeRemaining(),
       timeRemainingMs: Math.round(this.timeRemainingMs),
       activeMoleIndex: this.activeMoleIndex,
+      activeMoleType: this.activeMoleType,
       currentReactionStart: this.currentReactionStart,
       score: this.score,
       hits: this.hits,
@@ -226,7 +240,8 @@ class Game {
     if (!this.sessionStartTs) return 0;
     const elapsedMs = performance.now() - this.sessionStartTs;
     const plannedDurationMs = this.sessionDurationSeconds * 1000;
-    return this.clamp(elapsedMs / plannedDurationMs, 0, 1);
+    const linearProgress = this.clamp(elapsedMs / plannedDurationMs, 0, 1);
+    return Math.pow(linearProgress, this.difficultyRampExponent);
   }
 
   getCurrentSpawnGapMs() {
@@ -346,6 +361,7 @@ class Game {
 
     const nextIndex = this.randomInt(0, 24);
     this.activeMoleIndex = nextIndex;
+    this.activeMoleType = Math.random() < this.redButtonProbability ? 'red' : 'good';
     this.currentReactionStart = performance.now();
     this.molesSpawned += 1;
     const progress = this.getDifficultyProgress();
@@ -353,17 +369,24 @@ class Game {
     console.log('[GAME][DIFFICULTY_STATE]', {
       progress: Number(progress.toFixed(3)),
       chosenSpawnDelayMs: this.pendingSpawnDelayMs,
-      chosenVisibleDurationMs: visibleDuration
+      chosenVisibleDurationMs: visibleDuration,
+      rampExponent: this.difficultyRampExponent
     });
     console.log('[GAME][SPAWN_MOLE]', {
       moleIndex: this.activeMoleIndex,
+      moleType: this.activeMoleType,
+      redButtonProbability: this.redButtonProbability,
       visibleRangeMs: [CONFIG.game.moleVisibleStartMs || 1800, CONFIG.game.moleVisibleEndMs || 550],
       snapshot: this.getDebugSnapshot()
     });
 
     if (window.ui) {
-      window.ui.lightButton(this.activeMoleIndex);
-      window.ui.showGameStatus('Whack the lit button!', 'good');
+      window.ui.lightButton(this.activeMoleIndex, this.activeMoleType);
+      if (this.activeMoleType === 'red') {
+        window.ui.showGameStatus('Avoid red button!', 'bad');
+      } else {
+        window.ui.showGameStatus('Whack the lit button!', 'good');
+      }
     }
 
     this.moleVisibleTimeout = setTimeout(() => {
@@ -431,12 +454,17 @@ class Game {
     if (buttonIndex === this.activeMoleIndex) {
       console.log('[GAME][GRID_PRESS_DECISION]', {
         source,
-        decision: 'correct_press',
+        decision: this.activeMoleType === 'red' ? 'red_press' : 'correct_press',
         clickedButtonIndex: buttonIndex,
         litButtonIndex: this.activeMoleIndex,
+        litButtonType: this.activeMoleType,
         snapshotBefore
       });
-      this.handleCorrectPress();
+      if (this.activeMoleType === 'red') {
+        this.handleRedPress();
+      } else {
+        this.handleCorrectPress();
+      }
     } else {
       console.log('[GAME][GRID_PRESS_DECISION]', {
         source,
@@ -512,8 +540,56 @@ class Game {
     this.adjustTime(-this.timePenaltyWrongMs, 'wrong_press');
   }
 
+  handleRedPress() {
+    if (this.activeMoleIndex === null || this.activeMoleType !== 'red') {
+      return;
+    }
+
+    const scoreBefore = this.score;
+    this.score -= this.redPressPenalty;
+    this.wrongWhacks += 1;
+    console.log('[GAME][RED_PRESS]', {
+      redPressPenalty: this.redPressPenalty,
+      timePenaltyRedMs: this.timePenaltyRedMs,
+      scoreBefore,
+      scoreAfter: this.score,
+      snapshotAfterScore: this.getDebugSnapshot()
+    });
+    if (window.ui) {
+      window.ui.clearLitButton();
+      window.ui.updateScore(this.score);
+      window.ui.updateGameStats(this.hits, this.misses, this.wrongWhacks);
+      window.ui.animateScoreBreakdown([
+        { label: 'Red trap', value: -this.redPressPenalty, type: 'bad' }
+      ]);
+      window.ui.animateTimeBreakdown([
+        { label: 'Time', value: -Number((this.timePenaltyRedMs / 1000).toFixed(2)), type: 'bad' }
+      ]);
+      window.ui.showGameStatus('Red penalty!', 'bad');
+    }
+    const sessionEnded = this.adjustTime(-this.timePenaltyRedMs, 'red_press');
+    this.clearActiveMole();
+    if (!sessionEnded) {
+      this.scheduleNextMole();
+    }
+  }
+
   handleMiss() {
     if (this.activeMoleIndex === null || this.state !== window.GameState.GAME_PLAY) {
+      return;
+    }
+
+    if (this.activeMoleType === 'red') {
+      console.log('[GAME][RED_AVOIDED]', {
+        avoidedMoleIndex: this.activeMoleIndex,
+        snapshotAfterAvoid: this.getDebugSnapshot()
+      });
+      if (window.ui) {
+        window.ui.clearLitButton();
+        window.ui.showGameStatus('Good avoid!', 'good');
+      }
+      this.clearActiveMole();
+      this.scheduleNextMole();
       return;
     }
 
@@ -558,6 +634,7 @@ class Game {
       this.moleSpawnTimeout = null;
     }
     this.activeMoleIndex = null;
+    this.activeMoleType = 'good';
     this.currentReactionStart = null;
   }
 
@@ -615,6 +692,8 @@ class Game {
     return {
       scoreId: this.currentScoreId,
       name: this.playerName || 'Unknown',
+      firstName: (this.playerFirstName || '').trim(),
+      lastName: (this.playerLastName || '').trim(),
       email: (this.playerEmail || '').trim().toLowerCase(),
       company: this.playerCompany || '',
       newsletterOptIn: this.newsletterOptIn ? 'Yes' : 'No',
@@ -684,6 +763,7 @@ class Game {
     try {
       await this.localStorage.savePlayerScore(payload);
       this.localStorage.enqueueScore(payload);
+      this.demoLeaderboardDirty = true;
       if (attemptNow) {
         await this.processOutbox();
       } else {
@@ -700,6 +780,14 @@ class Game {
 
   isScorePending(scoreId) {
     return this.localStorage.isScorePending(scoreId);
+  }
+
+  shouldRefreshDemoLeaderboard() {
+    return this.demoLeaderboardDirty;
+  }
+
+  markDemoLeaderboardRendered() {
+    this.demoLeaderboardDirty = false;
   }
 
   async processOutbox() {
@@ -722,7 +810,12 @@ class Game {
         this.localStorage.markOutboxAttempt(entry.scoreId);
 
         const result = await this.sheets.savePlayerScore(entry.payload);
-        if (result && (result.status === 'inserted' || result.status === 'duplicate')) {
+        const accepted = result && (
+          result.status === 'inserted' ||
+          result.status === 'duplicate' ||
+          result.ok === true
+        );
+        if (accepted) {
           this.localStorage.markAcked(entry.scoreId, result.serverTimestamp || '');
         } else {
           this.localStorage.scheduleRetry(entry.scoreId, result && result.error ? result.error : 'sync_failed');
@@ -739,6 +832,10 @@ class Game {
 
   getLocalLeaderboard(limit = 10) {
     return this.localStorage.getLeaderboard(limit);
+  }
+
+  getCachedRemoteLeaderboard(limit = 10) {
+    return this.localStorage.getCachedRemoteLeaderboard(limit);
   }
 
   getTodayReactionStats() {
@@ -806,14 +903,47 @@ class Game {
     }
   }
 
+  getPlayerPlacementAgainstLeaderboard(playerData, leaderboard = []) {
+    try {
+      const playerScore = Number(playerData && playerData.totalScore) || 0;
+      const rows = Array.isArray(leaderboard) ? leaderboard : [];
+      const higherScores = rows.filter((entry) => (Number(entry && entry.score) || 0) > playerScore).length;
+      const totalPlayers = rows.length + 1;
+      const rank = higherScores + 1;
+      const fasterThanCount = Math.max(0, totalPlayers - rank);
+      const topPercent = Math.max(1, Math.ceil((rank / Math.max(totalPlayers, 1)) * 100));
+      return { rank, totalPlayers, topPercent, fasterThanCount };
+    } catch (error) {
+      console.error('Failed to compute leaderboard-based placement:', error);
+      return this.getPlayerPlacement(playerData);
+    }
+  }
+
   async getRemoteLeaderboard(limit = 10) {
     try {
       const sheetsLeaderboard = await this.sheets.getLeaderboard(limit);
-      return Array.isArray(sheetsLeaderboard) ? sheetsLeaderboard : [];
+      const remoteRows = Array.isArray(sheetsLeaderboard) ? sheetsLeaderboard : [];
+
+      if (remoteRows.length > 0) {
+        this.localStorage.setCachedRemoteLeaderboard(remoteRows);
+      } else if (this.getCachedRemoteLeaderboard(limit).length === 0) {
+        // Keep empty only when there is no existing cache to avoid replacing valid cache
+        // during transient endpoint failures that return empty arrays.
+        this.localStorage.setCachedRemoteLeaderboard([]);
+      }
+
+      return remoteRows;
     } catch (error) {
       console.error('Failed to get remote leaderboard:', error);
       return [];
     }
+  }
+
+  refreshRemoteLeaderboardInBackground(limit = 10) {
+    return this.getRemoteLeaderboard(limit).catch((error) => {
+      console.error('Background remote leaderboard refresh failed:', error);
+      return [];
+    });
   }
 
   async getLeaderboard() {
@@ -843,39 +973,68 @@ class Game {
     this.setState(window.GameState.PRE_GAME_COUNTDOWN);
   }
 
+  isInactivityTimersEnabled() {
+    return !(CONFIG.game && CONFIG.game.disableInactivityTimers === true);
+  }
+
   startLeaderboardCountdown() {
+    if (!this.isInactivityTimersEnabled()) {
+      if (window.ui) {
+        window.ui.updateCountdown(0);
+      }
+      const doneBtn = document.getElementById('leaderboard-done-btn');
+      if (doneBtn) {
+        doneBtn.textContent = 'DONE';
+      }
+      this.clearIdleTimer();
+      return;
+    }
+
     if (!CONFIG.game.leaderboardCountdownEnabled) {
-      const countdownEl = document.getElementById('leaderboard-countdown');
-      if (countdownEl) {
-        countdownEl.style.display = 'none';
+      if (window.ui) {
+        window.ui.updateCountdown(0);
       }
       return;
     }
 
-    const countdownEl = document.getElementById('leaderboard-countdown');
-    if (countdownEl) {
-      countdownEl.style.display = '';
+    if (this.countdownInterval) {
+      clearInterval(this.countdownInterval);
+      this.countdownInterval = null;
+    }
+    if (this.leaderboardCountdownStartTimeout) {
+      clearTimeout(this.leaderboardCountdownStartTimeout);
+      this.leaderboardCountdownStartTimeout = null;
     }
 
-    this.clearIdleTimer();
-    let countdown = CONFIG.game.leaderboardCountdownSeconds;
-
-    if (window.ui) {
-      window.ui.updateCountdown(countdown);
+    const doneBtn = document.getElementById('leaderboard-done-btn');
+    if (doneBtn) {
+      doneBtn.textContent = 'DONE';
     }
 
-    this.countdownInterval = setInterval(() => {
-      countdown--;
+    this.leaderboardCountdownStartTimeout = setTimeout(() => {
+      this.leaderboardCountdownStartTimeout = null;
+      if (this.state !== window.GameState.SHOW_LEADERBOARD) {
+        return;
+      }
+
+      let countdown = CONFIG.game.leaderboardCountdownSeconds;
       if (window.ui) {
         window.ui.updateCountdown(countdown);
       }
 
-      if (countdown <= 0) {
-        clearInterval(this.countdownInterval);
-        this.countdownInterval = null;
-        this.setState(window.GameState.DEMO);
-      }
-    }, 1000);
+      this.countdownInterval = setInterval(() => {
+        countdown--;
+        if (window.ui) {
+          window.ui.updateCountdown(countdown);
+        }
+
+        if (countdown <= 0) {
+          clearInterval(this.countdownInterval);
+          this.countdownInterval = null;
+          this.setState(window.GameState.DEMO);
+        }
+      }, 1000);
+    }, this.leaderboardCountdownIdleDelayMs);
   }
 
   clearIdleTimer() {
@@ -887,18 +1046,28 @@ class Game {
       clearInterval(this.countdownInterval);
       this.countdownInterval = null;
     }
+    if (this.leaderboardCountdownStartTimeout) {
+      clearTimeout(this.leaderboardCountdownStartTimeout);
+      this.leaderboardCountdownStartTimeout = null;
+    }
   }
 
   handleUserAction() {
     this.lastUserAction = Date.now();
-    this.clearIdleWarning();
-
-    if (this.state === window.GameState.LEAD_FORM) {
-      this.startIdleTimer();
+    if (this.isInactivityTimersEnabled()) {
+      this.clearIdleWarning();
     }
+    if (this.state === window.GameState.SHOW_LEADERBOARD) {
+      this.startLeaderboardCountdown();
+    }
+
+    // No timer on lead form screen.
   }
 
   startIdleTimer() {
+    if (!this.isInactivityTimersEnabled()) {
+      return;
+    }
     this.clearIdleTimer();
     this.idleTimer = setTimeout(() => {
       this.setState(window.GameState.DEMO);
@@ -906,6 +1075,9 @@ class Game {
   }
 
   startIdleDetection() {
+    if (!this.isInactivityTimersEnabled()) {
+      return;
+    }
     this.clearIdleWarning();
 
     if (this.state === window.GameState.DEMO) {
@@ -933,6 +1105,9 @@ class Game {
   }
 
   showIdleWarning() {
+    if (!this.isInactivityTimersEnabled()) {
+      return;
+    }
     if (this.state === window.GameState.DEMO) {
       return;
     }

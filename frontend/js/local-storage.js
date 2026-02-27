@@ -4,6 +4,7 @@ class LocalStorageBackup {
   constructor() {
     this.storageKey = 'firefly_game_scores';
     this.outboxKey = 'firefly_score_outbox_v1';
+    this.remoteLeaderboardCacheKey = 'firefly_remote_leaderboard_cache_v1';
     this.maxEntries = 1000; // Limit to prevent storage overflow
     this.retryBackoffMs = [2000, 5000, 15000, 60000, 300000];
   }
@@ -20,6 +21,8 @@ class LocalStorageBackup {
         scoreId: playerData.scoreId || '',
         timestamp: playerData.timestamp || new Date().toISOString(),
         name: playerData.name || 'Unknown',
+        firstName: (playerData.firstName || '').trim(),
+        lastName: (playerData.lastName || '').trim(),
         email: (playerData.email || '').trim().toLowerCase(),
         company: playerData.company || '',
         newsletterOptIn: playerData.newsletterOptIn || 'No',
@@ -225,6 +228,48 @@ class LocalStorageBackup {
     } catch (error) {
       console.error('Error getting leaderboard from local storage:', error);
       return [];
+    }
+  }
+
+  getCachedRemoteLeaderboard(limit = 10) {
+    try {
+      const raw = localStorage.getItem(this.remoteLeaderboardCacheKey);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      const rows = Array.isArray(parsed && parsed.leaderboard) ? parsed.leaderboard : [];
+      const normalized = rows
+        .filter((entry) => entry && typeof entry === 'object')
+        .map((entry) => ({
+          rank: Number(entry.rank) || 0,
+          timestamp: entry.timestamp || '',
+          name: entry.name || 'Unknown',
+          score: Number(entry.score) || 0,
+          avgReaction: Number(entry.avgReaction) || 0,
+          bestReaction: Number(entry.bestReaction) || 0
+        }));
+
+      if (!Number.isFinite(limit) || limit <= 0) {
+        return normalized;
+      }
+      return normalized.slice(0, limit);
+    } catch (error) {
+      console.error('Error reading remote leaderboard cache:', error);
+      return [];
+    }
+  }
+
+  setCachedRemoteLeaderboard(leaderboard) {
+    try {
+      const rows = Array.isArray(leaderboard) ? leaderboard : [];
+      const payload = {
+        updatedAt: new Date().toISOString(),
+        leaderboard: rows
+      };
+      localStorage.setItem(this.remoteLeaderboardCacheKey, JSON.stringify(payload));
+      return true;
+    } catch (error) {
+      console.error('Error writing remote leaderboard cache:', error);
+      return false;
     }
   }
 
