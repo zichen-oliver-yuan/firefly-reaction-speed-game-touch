@@ -3,7 +3,7 @@ const CONFIG = {
     mode: 'appsScript',
     appsScriptUrl: 'https://script.google.com/macros/s/AKfycbyNtJMXcULh7-7VR0FFa6SGJ43t9uqonTCXW8JeV-KdNRPsuyNVaQRHaDCdXY3OGmdE/exec',
     sharedToken: 'm6ehUrjFG1ZagN0',
-    timeoutMs: 5000,
+    timeoutMs: 12000,
     leaderboardTimeoutMs: 12000,
     syncIntervalMs: 15000
   },
