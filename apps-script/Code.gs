@@ -87,7 +87,7 @@ function handleSubmitScore(payload) {
   const reactionTimes = normalizeReactionTimes(payload.reactionTimes);
   const rounds = toInt(payload.rounds);
 
-  if (!scoreId || !timestamp || !name || !email || !company) {
+  if (!scoreId || !timestamp || !name || !email) {
     return jsonResponse({ ok: false, error: 'Missing required fields' });
   }
 
