@@ -471,11 +471,21 @@ class UIController {
     const placementRank = hasPlayer && playerSummary.placement
       ? Number(playerSummary.placement.rank) || 1
       : 1;
+
+    // If the player's entry already exists in the fetched leaderboard (score
+    // was synced before this render), highlight it in-place instead of
+    // injecting a duplicate row.
+    const playerScore = hasPlayer ? Number(playerSummary.playerData.totalScore) : null;
+    const playerName  = hasPlayer ? (playerSummary.playerData.name || '').trim().toLowerCase() : null;
+    const playerAlreadyInList = hasPlayer && leaderboard.some(
+      e => Number(e.score) === playerScore && (e.name || '').trim().toLowerCase() === playerName
+    );
+
     const insertIndex = Math.max(0, Math.min(leaderboard.length, placementRank - 1));
-    let playerInserted = false;
+    let playerInserted = playerAlreadyInList;
 
     leaderboard.forEach((entry, index) => {
-      if (hasPlayer && !playerInserted && index === insertIndex) {
+      if (hasPlayer && !playerAlreadyInList && !playerInserted && index === insertIndex) {
         const playerRow = document.createElement('div');
         playerRow.className = 'leaderboard-entry player-highlight';
         playerRow.innerHTML = `
@@ -487,8 +497,11 @@ class UIController {
         playerInserted = true;
       }
 
+      const isPlayerEntry = playerAlreadyInList
+        && Number(entry.score) === playerScore
+        && (entry.name || '').trim().toLowerCase() === playerName;
       const row = document.createElement('div');
-      row.className = 'leaderboard-entry';
+      row.className = 'leaderboard-entry' + (isPlayerEntry ? ' player-highlight' : '');
       row.innerHTML = `
         <span>${entry.rank || '-'}</span>
         <span>${this.toDisplayName(entry.name)}</span>
@@ -508,10 +521,12 @@ class UIController {
       listEl.appendChild(playerRow);
     }
 
-    const endMessage = document.createElement('div');
-    endMessage.className = 'leaderboard-entry leaderboard-message';
-    endMessage.textContent = 'PLAY TO JOIN THE LEADERBOARD!';
-    listEl.appendChild(endMessage);
+    if (!hasPlayer) {
+      const endMessage = document.createElement('div');
+      endMessage.className = 'leaderboard-entry leaderboard-message';
+      endMessage.textContent = 'PLAY TO JOIN THE LEADERBOARD!';
+      listEl.appendChild(endMessage);
+    }
     this.updateBackTopButtonVisibility();
   }
 
