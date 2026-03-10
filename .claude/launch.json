@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Frontend (static)",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8080", "--directory", "frontend"],
+      "port": 8080
+    },
+    {
+      "name": "Screenshots (Playwright)",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "screenshots"],
+      "port": 0
+    }
+  ]
+}

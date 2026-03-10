@@ -20,12 +20,27 @@ class UIController {
     this.lastTimeValue = null;
     this.lastScoreValue = null;
 
-    this.tutorialData = {
-      copy: 'Press the lit green buttons as soon as you can. Avoid the red ones :) That\'s it.'
-    };
+    // Attract cycle timers (multi-step: reveal → grow → scroll → grid → lb → repeat)
+    this.attractTimers    = [];
+    this.attractLbVisible = false;
+
+    // Timing (ms from cycle start)
+    this.attractReveal1Ms = 1500;   // Phase 1: magenta slides up
+    this.attractReveal2Ms = 2500;   // Phase 2: lime slides up
+    this.attractGrowMs    = 3800;   // Phase 3a: text grows in place (font-size transition)
+    this.attractScrollMs  = 4800;   // Phase 3b: scroll starts (1 s after grow begins)
+    this.attractGridMs    = 9500;   // Phase 4: multi-row grid fades in
+    this.attractLbShowMs  = 10200;  // Leaderboard slides up over grid
+    this.attractLbHideMs  = 20200;  // Leaderboard hides → restart cycle
+
+    // Per-band config (text, direction, speed)
+    this.attractBandConfigs = [
+      { id: 'attract-track-0', text: 'PLAY TO WIN!', dir: 'ltr', speed: 7 },
+      { id: 'attract-track-1', text: '$1,000',       dir: 'rtl', speed: 5 },
+      { id: 'attract-track-2', text: 'CASH',         dir: 'ltr', speed: 9 },
+    ];
 
     this.initializeCountdownGrid();
-    this.updateTutorialStep();
     this.setupLedResizeHandler();
     this.setupLeaderboardUX();
   }
@@ -33,6 +48,7 @@ class UIController {
   updateState(state, nav = {}) {
     if (state !== 'demo') {
       this.stopDemoRefresh();
+      this.stopAttractCycle();
     }
 
     switch (state) {
@@ -40,13 +56,11 @@ class UIController {
         this.showScreen('demo', nav.direction);
         this.clearLeadFormData();
         this.startDemoRefresh();
-        break;
-      case 'tutorial':
-        this.showScreen('tutorial', nav.direction);
-        this.updateTutorialStep();
+        this.startAttractCycle();
         break;
       case 'countdown':
         this.showScreen('countdown', nav.direction);
+        this.stopAttractCycle();
         break;
       case 'game_start':
       case 'game_play':
@@ -241,9 +255,17 @@ class UIController {
 
   updateBackTopButtonVisibility() {
     const button = document.getElementById('leaderboard-back-top-btn');
+    if (!button) return;
+
+    // Never show on game-end leaderboard (HOME button handles that) or demo screen.
+    if (this.currentScreen === 'leaderboard' || this.currentScreen === 'demo') {
+      button.classList.add('hidden');
+      return;
+    }
+
     const list = this.getActiveLeaderboardList();
-    if (!button || !list) {
-      if (button) button.classList.add('hidden');
+    if (!list) {
+      button.classList.add('hidden');
       return;
     }
 
@@ -325,15 +347,231 @@ class UIController {
   }
 
   initializeCountdownGrid() {
-    const grid = document.getElementById('countdown-grid');
-    if (!grid || grid.children.length === 25) return;
+    // countdown-grid removed in new design — no-op kept for safety
+  }
 
-    grid.innerHTML = '';
-    for (let i = 0; i < 25; i++) {
-      const dot = document.createElement('div');
-      dot.className = 'game-button';
-      grid.appendChild(dot);
+  /** Show or hide the demo leaderboard panel. */
+  setDemoLeaderboardVisible(visible) {
+    const panel = document.getElementById('demo-lb-panel');
+    if (!panel) return;
+    this.attractLbVisible = visible;
+    panel.classList.toggle('visible', visible);
+  }
+
+  /**
+   * Reset attract to Phase 0 instantly (no transition flash of colour bands).
+   * Rebuilds each band track back to a single seed item.
+   */
+  resetAttractPhase() {
+    const bands = document.getElementById('attract-bands');
+    if (bands) {
+      // Disable flex-grow transitions so bands snap instantly (no glimpse of colours)
+      bands.querySelectorAll('.attract-band').forEach(b => { b.style.transition = 'none'; });
+      bands.classList.remove('attract-phase-1', 'attract-phase-2', 'attract-growing', 'attract-scrolling');
+      // Re-enable transitions on the next paint
+      requestAnimationFrame(() => {
+        bands.querySelectorAll('.attract-band').forEach(b => { b.style.transition = ''; });
+      });
     }
+
+    // Rebuild each track with a single seed item (small font-size)
+    this.attractBandConfigs.forEach(({ id, text }) => {
+      const track = document.getElementById(id);
+      if (!track) return;
+      track.style.animation     = '';
+      track.style.justifyContent = '';
+      track.style.width          = '';
+      track.innerHTML = '';
+      const s = document.createElement('span');
+      s.className   = 'attract-item';
+      s.textContent = text;
+      track.appendChild(s);
+    });
+
+    this.hideAttractGrid();
+  }
+
+  /** Phase 3a — add CSS class so each band's single item grows via font-size transition. */
+  startAttractGrow() {
+    const bands = document.getElementById('attract-bands');
+    if (bands) bands.classList.add('attract-growing');
+  }
+
+  /**
+   * Phase 3b — fill tracks with duplicated items and start scrolling.
+   * Calculates a negative animation-delay so the scroll STARTS from the
+   * visually centred position (no jump).
+   */
+  startAttractScroll() {
+    const bands = document.getElementById('attract-bands');
+    if (!bands) return;
+
+    // 1. Measure current single items (they're at large size from attract-growing CSS)
+    const measurements = this.attractBandConfigs.map(({ id }) => {
+      const track = document.getElementById(id);
+      const seed  = track?.querySelector('.attract-item');
+      return {
+        itemW: seed?.offsetWidth  ?? 0,
+        bandW: track?.closest('.attract-band')?.offsetWidth ?? 1080,
+      };
+    });
+
+    // 2. Switch from growing → scrolling (items will render large, transition: none)
+    bands.classList.remove('attract-growing');
+    bands.classList.add('attract-scrolling');
+
+    // 3. Build each track
+    this.attractBandConfigs.forEach(({ id, text, dir, speed }, i) => {
+      const track = document.getElementById(id);
+      if (!track) return;
+
+      const { itemW, bandW } = measurements[i];
+      if (!itemW) return;
+
+      // Enough copies so the 50 %-keyframe covers > 2 × band width
+      const copies = Math.max(4, Math.ceil((bandW * 3) / itemW) + 1);
+
+      track.innerHTML = '';
+      for (let j = 0; j < copies * 2; j++) {
+        const s = document.createElement('span');
+        s.className   = 'attract-item';
+        s.textContent = text;
+        track.appendChild(s);
+      }
+
+      // Compute negative animation-delay so the first visible frame shows the
+      // text at the same centred position the growing item just held.
+      // centerOffset = (bandW - itemW) / 2  (negative when text > band)
+      const centerOffset = (bandW - itemW) / 2;
+      const halfTrackW   = copies * itemW;
+      let delay = 0;
+
+      if (dir === 'ltr') {
+        // LTR: translateX goes 0 → -halfTrackW
+        // We want start pos = centerOffset  →  f = -centerOffset / halfTrackW
+        const f = Math.max(0, -centerOffset) / halfTrackW;
+        delay = -(f * speed);
+      } else {
+        // RTL: translateX goes -halfTrackW → 0
+        // We want start pos = centerOffset  →  f = 1 + centerOffset/halfTrackW
+        const f = 1 + Math.min(0, centerOffset) / halfTrackW;
+        delay = -(Math.max(0, f) * speed);
+      }
+
+      const animName = dir === 'ltr' ? 'attractScrollLTR' : 'attractScrollRTL';
+      track.style.animation = `${animName} ${speed}s linear ${delay.toFixed(3)}s infinite`;
+    });
+  }
+
+  /** Build the Phase 4 multi-row grid (runs once; idempotent). */
+  initAttractGrid() {
+    const grid = document.getElementById('attract-grid');
+    if (!grid || grid.dataset.initialized) return;
+
+    const rows = [
+      { color: 'teal',    text: 'PLAY TO WIN!', anim: 'attractScrollLTR', speed: 7    },
+      { color: 'magenta', text: '$1,000',        anim: 'attractScrollRTL', speed: 5    },
+      { color: 'lime',    text: 'CASH',          anim: 'attractScrollLTR', speed: 9    },
+      { color: 'teal',    text: 'PLAY TO WIN!', anim: 'attractScrollRTL', speed: 6    },
+      { color: 'magenta', text: '$1,000',        anim: 'attractScrollLTR', speed: 8    },
+      { color: 'lime',    text: 'CASH',          anim: 'attractScrollRTL', speed: 4.5  },
+      { color: 'teal',    text: 'PLAY TO WIN!', anim: 'attractScrollLTR', speed: 7    },
+      { color: 'magenta', text: '$1,000',        anim: 'attractScrollRTL', speed: 5    },
+      { color: 'lime',    text: 'CASH',          anim: 'attractScrollLTR', speed: 9    },
+      { color: 'teal',    text: 'PLAY TO WIN!', anim: 'attractScrollRTL', speed: 6    },
+      { color: 'magenta', text: '$1,000',        anim: 'attractScrollLTR', speed: 8    },
+      { color: 'lime',    text: 'CASH',          anim: 'attractScrollRTL', speed: 4.5  },
+    ];
+
+    rows.forEach(({ color, text, anim, speed }) => {
+      const row   = document.createElement('div');
+      row.className = `attract-grid-row attract-grid-${color}`;
+
+      const track = document.createElement('div');
+      track.className = 'attract-grid-track';
+      track.style.animation = `${anim} ${speed}s linear infinite`;
+
+      for (let i = 0; i < 10; i++) {
+        const span = document.createElement('span');
+        span.className   = 'attract-grid-item';
+        span.textContent = text;
+        track.appendChild(span);
+      }
+
+      row.appendChild(track);
+      grid.appendChild(row);
+    });
+
+    grid.dataset.initialized = '1';
+  }
+
+  showAttractGrid() {
+    const grid = document.getElementById('attract-grid');
+    if (!grid) return;
+    this.initAttractGrid();
+    grid.classList.add('visible');
+  }
+
+  hideAttractGrid() {
+    const grid = document.getElementById('attract-grid');
+    if (grid) grid.classList.remove('visible');
+  }
+
+  /** Start the multi-step attract cycle. */
+  startAttractCycle() {
+    this.stopAttractCycle();
+    this.resetAttractPhase();
+    this.setDemoLeaderboardVisible(false);
+
+    const at = (delay, fn) => {
+      const t = setTimeout(fn, delay);
+      this.attractTimers.push(t);
+    };
+
+    const bands = document.getElementById('attract-bands');
+
+    // Phase 1 – magenta slides up
+    at(this.attractReveal1Ms, () => {
+      if (bands) bands.classList.add('attract-phase-1');
+    });
+
+    // Phase 2 – lime slides up
+    at(this.attractReveal2Ms, () => {
+      if (bands) bands.classList.add('attract-phase-2');
+    });
+
+    // Phase 3a – text grows in place
+    at(this.attractGrowMs, () => {
+      this.startAttractGrow();
+    });
+
+    // Phase 3b – scroll starts (after grow transition completes)
+    at(this.attractScrollMs, () => {
+      this.startAttractScroll();
+    });
+
+    // Phase 4 – multi-row grid fades in
+    at(this.attractGridMs, () => {
+      this.showAttractGrid();
+    });
+
+    // Leaderboard slides up over grid
+    at(this.attractLbShowMs, () => {
+      this.setDemoLeaderboardVisible(true);
+    });
+
+    // Leaderboard hides → restart cycle
+    at(this.attractLbHideMs, () => {
+      this.setDemoLeaderboardVisible(false);
+      this.startAttractCycle();
+    });
+  }
+
+  stopAttractCycle() {
+    this.attractTimers.forEach(t => clearTimeout(t));
+    this.attractTimers = [];
+    this.setDemoLeaderboardVisible(false);
+    this.resetAttractPhase();
   }
 
   initializeButtonGrid() {
@@ -465,21 +703,18 @@ class UIController {
         const row = document.createElement('div');
         row.className = 'leaderboard-entry player-highlight';
         row.innerHTML = `
-          <span>${playerSummary.placement ? playerSummary.placement.rank : '-'}</span>
+          <span>${playerSummary.placement ? '#' + playerSummary.placement.rank : '-'}</span>
           <span>${this.toDisplayName(playerSummary.playerData.name || 'YOU')}</span>
           <span class="leaderboard-score">${playerSummary.playerData.totalScore || 0}${includePtsSuffix ? 'PTS' : ''}</span>
         `;
         listEl.appendChild(row);
+      } else {
+        const empty = document.createElement('div');
+        empty.className = 'leaderboard-entry leaderboard-message';
+        empty.textContent = 'PLAY TO JOIN THE LEADERBOARD!';
+        listEl.appendChild(empty);
       }
-
-      const empty = document.createElement('div');
-      empty.className = 'leaderboard-entry leaderboard-message';
-      empty.textContent = 'PLAY TO JOIN THE LEADERBOARD!';
-      listEl.appendChild(empty);
-      const endMessage = document.createElement('div');
-      endMessage.className = 'leaderboard-entry leaderboard-message';
-      endMessage.textContent = 'PLAY TO JOIN THE LEADERBOARD!';
-      listEl.appendChild(endMessage);
+      this.updateBackTopButtonVisibility();
       return;
     }
 
@@ -488,9 +723,8 @@ class UIController {
       ? Number(playerSummary.placement.rank) || 1
       : 1;
 
-    // If the player's entry already exists in the fetched leaderboard (score
-    // was synced before this render), highlight it in-place instead of
-    // injecting a duplicate row.
+    // If the player's entry already exists in the fetched leaderboard (score was synced
+    // before this render), highlight it in-place instead of injecting a duplicate row.
     const playerScore = hasPlayer ? Number(playerSummary.playerData.totalScore) : null;
     const playerName  = hasPlayer ? (playerSummary.playerData.name || '').trim().toLowerCase() : null;
     const playerAlreadyInList = hasPlayer && leaderboard.some(
@@ -500,16 +734,19 @@ class UIController {
     const insertIndex = Math.max(0, Math.min(leaderboard.length, placementRank - 1));
     let playerInserted = playerAlreadyInList;
 
+    // Build rows array first so we can tag near-player rows after the fact.
+    const rowEls = [];
+
     leaderboard.forEach((entry, index) => {
       if (hasPlayer && !playerAlreadyInList && !playerInserted && index === insertIndex) {
         const playerRow = document.createElement('div');
         playerRow.className = 'leaderboard-entry player-highlight';
         playerRow.innerHTML = `
-          <span>${playerSummary.placement ? playerSummary.placement.rank : '-'}</span>
+          <span>${playerSummary.placement ? '#' + playerSummary.placement.rank : '-'}</span>
           <span>${this.toDisplayName(playerSummary.playerData.name || 'YOU')}</span>
           <span class="leaderboard-score">${playerSummary.playerData.totalScore || 0}${includePtsSuffix ? 'PTS' : ''}</span>
         `;
-        listEl.appendChild(playerRow);
+        rowEls.push(playerRow);
         playerInserted = true;
       }
 
@@ -523,26 +760,36 @@ class UIController {
         <span>${this.toDisplayName(entry.name)}</span>
         <span class="leaderboard-score">${entry.score || 0}${includePtsSuffix ? 'PTS' : ''}</span>
       `;
-      listEl.appendChild(row);
+      rowEls.push(row);
     });
 
     if (hasPlayer && !playerInserted) {
       const playerRow = document.createElement('div');
       playerRow.className = 'leaderboard-entry player-highlight';
       playerRow.innerHTML = `
-        <span>${playerSummary.placement ? playerSummary.placement.rank : '-'}</span>
+        <span>${playerSummary.placement ? '#' + playerSummary.placement.rank : '-'}</span>
         <span>${this.toDisplayName(playerSummary.playerData.name || 'YOU')}</span>
         <span class="leaderboard-score">${playerSummary.playerData.totalScore || 0}${includePtsSuffix ? 'PTS' : ''}</span>
       `;
-      listEl.appendChild(playerRow);
+      rowEls.push(playerRow);
     }
 
     if (!hasPlayer) {
       const endMessage = document.createElement('div');
       endMessage.className = 'leaderboard-entry leaderboard-message';
       endMessage.textContent = 'PLAY TO JOIN THE LEADERBOARD!';
-      listEl.appendChild(endMessage);
+      rowEls.push(endMessage);
     }
+
+    // Tag the rows immediately adjacent to the player-highlight as near-player
+    // so they get a slightly higher opacity in the dark theme.
+    const playerIdx = rowEls.findIndex(r => r.classList.contains('player-highlight'));
+    if (playerIdx !== -1) {
+      if (rowEls[playerIdx - 1]) rowEls[playerIdx - 1].classList.add('near-player');
+      if (rowEls[playerIdx + 1]) rowEls[playerIdx + 1].classList.add('near-player');
+    }
+
+    rowEls.forEach(r => listEl.appendChild(r));
     this.updateBackTopButtonVisibility();
   }
 
@@ -558,15 +805,6 @@ class UIController {
       listEl.scrollTop = targetTop;
       this.updateBackTopButtonVisibility();
     }
-
-    const subtitle = document.getElementById('leaderboard-subtitle');
-    if (subtitle && playerSummary && playerSummary.placement) {
-      const total = Math.max(1, playerSummary.placement.totalPlayers || 1);
-      const percent = Math.round((Math.max(0, playerSummary.placement.fasterThanCount || 0) / total) * 100);
-      subtitle.textContent = `YOU BEAT ${percent}% OF THE PLAYERS`;
-      subtitle.dataset.baseText = subtitle.textContent;
-    }
-    this.refreshLedMarquee();
 
     void playerName;
   }
@@ -740,13 +978,21 @@ class UIController {
   }
 
   updatePreGameCountdown(seconds) {
-    const countdownEl = document.getElementById('pre-game-countdown-value');
-    if (countdownEl) {
-      const value = String(Math.max(0, seconds));
-      countdownEl.textContent = value;
-      countdownEl.dataset.baseText = value;
-    }
-    this.refreshLedMarquee();
+    const display = document.getElementById('countdown-display');
+    const numEl   = document.getElementById('pre-game-countdown-value');
+    if (!display || !numEl) return;
+
+    const val = Math.max(0, seconds);
+
+    // Swap background colour class
+    const colourMap = { 3: 'cd-teal', 2: 'cd-magenta', 1: 'cd-lime' };
+    display.classList.remove('cd-teal', 'cd-magenta', 'cd-lime');
+    display.classList.add(colourMap[val] || 'cd-teal');
+
+    // Re-trigger pop-in animation by replacing the element clone
+    const clone = numEl.cloneNode(true);
+    clone.textContent = val > 0 ? String(val) : '';
+    numEl.replaceWith(clone);
   }
 
   showGameEnd(totalScore, avgReaction, bestReaction) {
@@ -770,10 +1016,8 @@ class UIController {
   }
 
   updateCountdown(seconds) {
-    const doneBtn = document.getElementById('leaderboard-done-btn');
-    if (doneBtn) {
-      doneBtn.textContent = `DONE (${Math.max(0, seconds)})`;
-    }
+    // HOME button — just keep the label clean; no countdown number shown.
+    void seconds;
   }
 
   getLeadFormData() {

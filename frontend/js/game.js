@@ -3,7 +3,6 @@
 window.GameState = {
   DEMO: 'demo',
   WELCOME: 'welcome',
-  TUTORIAL: 'tutorial',
   PRE_GAME_COUNTDOWN: 'countdown',
   GAME_START: 'game_start',
   GAME_PLAY: 'game_play',

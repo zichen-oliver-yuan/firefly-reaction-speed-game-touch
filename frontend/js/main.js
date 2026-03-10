@@ -86,14 +86,7 @@ function setupEventHandlers() {
   bindPress(demoStartBtn, () => {
     if (window.game) {
       window.game.resetGame();
-      window.game.setState(window.GameState.TUTORIAL);
-    }
-  });
-
-  const tutorialNextBtn = document.getElementById('tutorial-next');
-  bindPress(tutorialNextBtn, () => {
-    if (window.ui) {
-      window.ui.nextTutorialStep();
+      window.game.setState(window.GameState.PRE_GAME_COUNTDOWN);
     }
   });
 
