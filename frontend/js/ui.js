@@ -40,6 +40,19 @@ class UIController {
       { id: 'attract-track-2', text: 'CASH',         dir: 'ltr', speed: 9 },
     ];
 
+    // Extra bands for Phase 4 zoom-out (rows 4–12)
+    this.attractExtraBandConfigs = [
+      { id: 'attract-track-3',  text: 'PLAY TO WIN!', dir: 'rtl', speed: 6   },
+      { id: 'attract-track-4',  text: '$1,000',        dir: 'ltr', speed: 8   },
+      { id: 'attract-track-5',  text: 'CASH',          dir: 'rtl', speed: 4.5 },
+      { id: 'attract-track-6',  text: 'PLAY TO WIN!', dir: 'ltr', speed: 7   },
+      { id: 'attract-track-7',  text: '$1,000',        dir: 'rtl', speed: 5   },
+      { id: 'attract-track-8',  text: 'CASH',          dir: 'ltr', speed: 9   },
+      { id: 'attract-track-9',  text: 'PLAY TO WIN!', dir: 'rtl', speed: 6   },
+      { id: 'attract-track-10', text: '$1,000',        dir: 'ltr', speed: 8   },
+      { id: 'attract-track-11', text: 'CASH',          dir: 'rtl', speed: 4.5 },
+    ];
+
     this.initializeCountdownGrid();
     this.setupLedResizeHandler();
     this.setupLeaderboardUX();
@@ -367,14 +380,14 @@ class UIController {
     if (bands) {
       // Disable flex-grow transitions so bands snap instantly (no glimpse of colours)
       bands.querySelectorAll('.attract-band').forEach(b => { b.style.transition = 'none'; });
-      bands.classList.remove('attract-phase-1', 'attract-phase-2', 'attract-growing', 'attract-scrolling');
+      bands.classList.remove('attract-phase-1', 'attract-phase-2', 'attract-growing', 'attract-scrolling', 'attract-phase4');
       // Re-enable transitions on the next paint
       requestAnimationFrame(() => {
         bands.querySelectorAll('.attract-band').forEach(b => { b.style.transition = ''; });
       });
     }
 
-    // Rebuild each track with a single seed item (small font-size)
+    // Rebuild each original track with a single seed item (small font-size)
     this.attractBandConfigs.forEach(({ id, text }) => {
       const track = document.getElementById(id);
       if (!track) return;
@@ -388,7 +401,19 @@ class UIController {
       track.appendChild(s);
     });
 
-    this.hideAttractGrid();
+    // Reset extra band tracks to a single seed item
+    this.attractExtraBandConfigs.forEach(({ id, text }) => {
+      const track = document.getElementById(id);
+      if (!track) return;
+      track.style.animation      = '';
+      track.style.justifyContent = '';
+      track.style.width          = '';
+      track.innerHTML = '';
+      const s = document.createElement('span');
+      s.className   = 'attract-item';
+      s.textContent = text;
+      track.appendChild(s);
+    });
   }
 
   /** Phase 3a — add CSS class so each band's single item grows via font-size transition. */
@@ -459,62 +484,40 @@ class UIController {
       }
 
       const animName = dir === 'ltr' ? 'attractScrollLTR' : 'attractScrollRTL';
+      track.style.justifyContent = 'flex-start';
+      track.style.width = 'max-content';
       track.style.animation = `${animName} ${speed}s linear ${delay.toFixed(3)}s infinite`;
     });
   }
 
-  /** Build the Phase 4 multi-row grid (runs once; idempotent). */
-  initAttractGrid() {
-    const grid = document.getElementById('attract-grid');
-    if (!grid || grid.dataset.initialized) return;
-
-    const rows = [
-      { color: 'teal',    text: 'PLAY TO WIN!', anim: 'attractScrollLTR', speed: 7    },
-      { color: 'magenta', text: '$1,000',        anim: 'attractScrollRTL', speed: 5    },
-      { color: 'lime',    text: 'CASH',          anim: 'attractScrollLTR', speed: 9    },
-      { color: 'teal',    text: 'PLAY TO WIN!', anim: 'attractScrollRTL', speed: 6    },
-      { color: 'magenta', text: '$1,000',        anim: 'attractScrollLTR', speed: 8    },
-      { color: 'lime',    text: 'CASH',          anim: 'attractScrollRTL', speed: 4.5  },
-      { color: 'teal',    text: 'PLAY TO WIN!', anim: 'attractScrollLTR', speed: 7    },
-      { color: 'magenta', text: '$1,000',        anim: 'attractScrollRTL', speed: 5    },
-      { color: 'lime',    text: 'CASH',          anim: 'attractScrollLTR', speed: 9    },
-      { color: 'teal',    text: 'PLAY TO WIN!', anim: 'attractScrollRTL', speed: 6    },
-      { color: 'magenta', text: '$1,000',        anim: 'attractScrollLTR', speed: 8    },
-      { color: 'lime',    text: 'CASH',          anim: 'attractScrollRTL', speed: 4.5  },
-    ];
-
-    rows.forEach(({ color, text, anim, speed }) => {
-      const row   = document.createElement('div');
-      row.className = `attract-grid-row attract-grid-${color}`;
-
-      const track = document.createElement('div');
-      track.className = 'attract-grid-track';
-      track.style.animation = `${anim} ${speed}s linear infinite`;
-
-      for (let i = 0; i < 10; i++) {
-        const span = document.createElement('span');
-        span.className   = 'attract-grid-item';
-        span.textContent = text;
-        track.appendChild(span);
+  /** Fill the extra band tracks with scrolling items (called just before Phase 4 class is applied). */
+  initExtraBandScrolling() {
+    this.attractExtraBandConfigs.forEach(({ id, text, dir, speed }) => {
+      const track = document.getElementById(id);
+      if (!track) return;
+      track.innerHTML = '';
+      for (let i = 0; i < 20; i++) {
+        const s = document.createElement('span');
+        s.className   = 'attract-item';
+        s.textContent = text;
+        track.appendChild(s);
       }
-
-      row.appendChild(track);
-      grid.appendChild(row);
+      track.style.justifyContent = 'flex-start';
+      track.style.width = 'max-content';
+      const anim = dir === 'ltr' ? 'attractScrollLTR' : 'attractScrollRTL';
+      track.style.animation = `${anim} ${speed}s linear infinite`;
     });
-
-    grid.dataset.initialized = '1';
   }
 
-  showAttractGrid() {
-    const grid = document.getElementById('attract-grid');
-    if (!grid) return;
-    this.initAttractGrid();
-    grid.classList.add('visible');
-  }
-
-  hideAttractGrid() {
-    const grid = document.getElementById('attract-grid');
-    if (grid) grid.classList.remove('visible');
+  /** Phase 4: zoom-out — compress all 12 bands to equal height via flex-grow transition. */
+  showAttractPhase4() {
+    const bands = document.getElementById('attract-bands');
+    if (!bands) return;
+    this.initExtraBandScrolling();
+    // Remove attract-scrolling so its high-specificity font-size rule no longer blocks
+    // the Phase 4 font-size transition. Track scrolling continues via inline styles.
+    bands.classList.remove('attract-scrolling');
+    bands.classList.add('attract-phase4');
   }
 
   /** Start the multi-step attract cycle. */
@@ -550,9 +553,9 @@ class UIController {
       this.startAttractScroll();
     });
 
-    // Phase 4 – multi-row grid fades in
+    // Phase 4 – zoom-out: bands compress to 1/12 height, extra rows rise into view
     at(this.attractGridMs, () => {
-      this.showAttractGrid();
+      this.showAttractPhase4();
     });
 
     // Leaderboard slides up over grid

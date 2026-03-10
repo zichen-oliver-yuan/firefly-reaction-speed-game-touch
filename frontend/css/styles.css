@@ -971,13 +971,13 @@ body {
 .attract-band-lime    { background: #dfff96; flex-grow: 0; }
 
 /* Phase 1: magenta slides up */
-.attract-bands.attract-phase-1 .attract-band-teal    { flex-grow: 1.11; }
-.attract-bands.attract-phase-1 .attract-band-magenta { flex-grow: 1;    }
+.attract-bands.attract-phase-1 .attract-band-teal:not(.attract-band-extra)    { flex-grow: 1.11; }
+.attract-bands.attract-phase-1 .attract-band-magenta:not(.attract-band-extra) { flex-grow: 1;    }
 
 /* Phase 2: lime slides up — all three thirds */
-.attract-bands.attract-phase-2 .attract-band-teal    { flex-grow: 1.10; }
-.attract-bands.attract-phase-2 .attract-band-magenta { flex-grow: 1;    }
-.attract-bands.attract-phase-2 .attract-band-lime    { flex-grow: 1.05; }
+.attract-bands.attract-phase-2 .attract-band-teal:not(.attract-band-extra)    { flex-grow: 1.10; }
+.attract-bands.attract-phase-2 .attract-band-magenta:not(.attract-band-extra) { flex-grow: 1;    }
+.attract-bands.attract-phase-2 .attract-band-lime:not(.attract-band-extra)    { flex-grow: 1.05; }
 
 /* ── Single text item per band (starts small, grows in Phase 3) ── */
 .attract-track {
@@ -1002,19 +1002,33 @@ body {
   transition: font-size 0.9s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Phase 3a — text grows in place */
-.attract-bands.attract-growing .attract-item {
+/* Extra bands (rows 4–12): invisible until Phase 4 */
+.attract-band-extra {
+  flex-grow: 0;
+}
+
+/* Phase 3a — text grows in place (original 3 bands only) */
+.attract-bands.attract-growing .attract-band:not(.attract-band-extra) .attract-item {
   font-size: clamp(8rem, 36.5vh, 48rem);
 }
 
-/* Phase 3b — scrolling: track overflows, items stay large with no transition */
+/* Phase 3b — scrolling: track overflows, items stay large with no transition (original 3 bands only) */
 .attract-bands.attract-scrolling .attract-track {
   justify-content: flex-start;
   width: max-content;
 }
-.attract-bands.attract-scrolling .attract-item {
+.attract-bands.attract-scrolling .attract-band:not(.attract-band-extra) .attract-item {
   font-size: clamp(8rem, 36.5vh, 48rem);
   transition: none;
+}
+
+/* Phase 4: all 12 bands compress to equal 1/12 height via flex-grow transition */
+.attract-bands.attract-phase4 .attract-band {
+  flex-grow: 1;
+}
+.attract-bands.attract-phase4 .attract-item {
+  font-size: clamp(2rem, 7.5vh, 9rem);
+  transition: font-size 0.9s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @keyframes attractScrollLTR {
@@ -1026,48 +1040,6 @@ body {
   to   { transform: translateX(0); }
 }
 
-/* ── Phase 4: full-screen multi-row scrolling grid ── */
-.attract-grid {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  z-index: 3;
-  opacity: 0;
-  pointer-events: none;
-}
-.attract-grid.visible {
-  opacity: 1;
-}
-
-.attract-grid-row {
-  flex: 1;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-}
-.attract-grid-teal    { background: #03eabb; }
-.attract-grid-magenta { background: #fc36fe; }
-.attract-grid-lime    { background: #dfff96; }
-
-.attract-grid-track {
-  display: flex;
-  align-items: center;
-  white-space: nowrap;
-  will-change: transform;
-}
-.attract-grid-item {
-  font-family: var(--font-schrifted);
-  font-weight: 400;
-  font-size: clamp(4rem, 9vh, 11rem);
-  color: #000;
-  letter-spacing: -0.05em;
-  line-height: 1;
-  text-transform: uppercase;
-  white-space: nowrap;
-  padding: 0 clamp(0.4rem, 1.5vw, 2rem);
-  flex-shrink: 0;
-}
 
 /* Demo leaderboard panel — slides up from the bottom */
 .demo-lb-panel {
