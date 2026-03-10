@@ -409,22 +409,17 @@ class UIController {
     this.attractExtraBandConfigs.forEach(({ id, text }) => resetTrack(id, text));
   }
 
-  /** Phase 3a — add CSS class so each band's single item grows via font-size transition. */
-  startAttractGrow() {
-    const bands = document.getElementById('attract-bands');
-    if (bands) bands.classList.add('attract-growing');
-  }
-
   /**
-   * Phase 3b — fill tracks with duplicated items and start scrolling.
-   * Calculates a negative animation-delay so the scroll STARTS from the
-   * visually centred position (no jump).
+   * Phase 3 — grow text AND scroll simultaneously.
+   * 1. Builds track copies at current (small) font size
+   * 2. Starts a percentage-based scroll animation (-50% auto-adapts as items grow)
+   * 3. Adds attract-growing class → items transition from small to large font
    */
   startAttractScroll() {
     const bands = document.getElementById('attract-bands');
     if (!bands) return;
 
-    // 1. Measure current single items with sub-pixel precision
+    // 1. Measure current single items at small font
     const measurements = this.attractBandConfigs.map(({ id }) => {
       const track = document.getElementById(id);
       const seed  = track?.querySelector('.attract-item');
@@ -434,11 +429,8 @@ class UIController {
       };
     });
 
-    // 2. Switch from growing → scrolling (items render large, transition: none via CSS)
-    bands.classList.remove('attract-growing');
-    bands.classList.add('attract-scrolling');
-
-    // 3. Build each track with pixel-exact looping animation
+    // 2. Build each track with copies at small size and start percentage-based scroll.
+    //    Using -50% keyframes means the loop adapts automatically as items grow.
     this.attractBandConfigs.forEach(({ id, text, dir, speed }, i) => {
       const track = document.getElementById(id);
       if (!track) return;
@@ -458,26 +450,15 @@ class UIController {
 
       track.style.justifyContent = 'flex-start';
       track.style.width = 'max-content';
-      void track.offsetWidth; // force layout so scrollWidth is accurate
 
-      // Use exact pixel half-width to eliminate sub-pixel seam gap at loop boundary
-      const halfW = track.scrollWidth / 2;
-
-      // Negative delay so scroll starts from the same centred position the grow-phase item held
-      const centerOffset = (bandW - itemW) / 2;
-      let delay = 0;
-      if (dir === 'ltr') {
-        const f = Math.max(0, -centerOffset) / halfW;
-        delay = -(f * speed);
-      } else {
-        const f = 1 + Math.min(0, centerOffset) / halfW;
-        delay = -(Math.max(0, f) * speed);
-      }
-
-      track.style.setProperty('--marquee-dist', `-${halfW}px`);
-      const animName = dir === 'ltr' ? 'attractScrollLTR-px' : 'attractScrollRTL-px';
-      track.style.animation = `${animName} ${speed}s linear ${delay.toFixed(3)}s infinite`;
+      const animName = dir === 'ltr' ? 'attractScrollLTR' : 'attractScrollRTL';
+      track.style.animation = `${animName} ${speed}s linear infinite`;
     });
+
+    // 3. Force layout at small size, then trigger grow transition.
+    //    Items transition from small → large while already scrolling.
+    void bands.offsetHeight;
+    bands.classList.add('attract-growing');
   }
 
   /** Phase 4: zoom-out — compress all 12 bands to equal height via flex-grow transition. */
@@ -485,95 +466,101 @@ class UIController {
     const bands = document.getElementById('attract-bands');
     if (!bands) return;
 
-    // Capture current scroll position of each Phase 3b track and immediately freeze it,
-    // preventing the old large-font --marquee-dist from driving the animation after the
-    // font-size snaps to small (which would cause a visual jump).
-    const capturedPositions = {};
-    this.attractBandConfigs.forEach(({ id }) => {
+    // Capture each Phase 3 track's scroll fraction and freeze it in place.
+    // Fraction = how far through the animation cycle (0–1).
+    const capturedFractions = {};
+    this.attractBandConfigs.forEach(({ id, dir }) => {
       const track = document.getElementById(id);
       if (!track) return;
       const x = new DOMMatrix(window.getComputedStyle(track).transform).m41;
-      capturedPositions[id] = x;
+      const halfW = track.scrollWidth / 2;
+      let frac = 0;
+      if (halfW > 0) {
+        frac = dir === 'ltr'
+          ? Math.max(0, Math.min(1, -x / halfW))
+          : Math.max(0, Math.min(1, (halfW + x) / halfW));
+      }
+      capturedFractions[id] = frac;
+      // Freeze: stop animation, hold position via inline transform
       track.style.animation = 'none';
       track.style.transform  = `translateX(${x}px)`;
     });
 
-    // Remove attract-scrolling so its high-specificity font-size rule no longer applies.
+    // Remove attract-growing (its font-size rule has higher specificity than Phase 4).
     // font-size will snap instantly to small (transition: none from Phase 4 CSS).
-    bands.classList.remove('attract-scrolling');
+    bands.classList.remove('attract-growing', 'attract-scrolling');
     bands.classList.add('attract-phase4');
 
-    // After two rAFs the browser has laid out all 12 bands at the new small font size.
-    // Re-init all bands with pixel-exact animations, resuming original bands from their
-    // captured positions.
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => this.initAllPhase4Scrolling(capturedPositions));
-    });
+    // Short delay so the browser lays out at the new small font size before we measure.
+    const t = setTimeout(() => this.initAllPhase4Scrolling(capturedFractions), 50);
+    this.attractTimers.push(t);
   }
 
   /**
    * Re-initialise all 12 band tracks with pixel-exact scrolling at Phase 4 small font size.
-   * Original 3 bands resume from their captured scroll position (seamless visual continuity).
-   * Extra 9 bands start from a visually centred position.
-   * @param {Object} capturedPositions – map of track id → translateX px at moment of Phase 4 fire
+   * Original 3 bands keep their existing DOM (no rebuild flicker) — just remeasure and restart.
+   * Extra 9 bands are built via document fragment for atomic DOM swap.
+   * @param {Object} capturedFractions – map of track id → cycle fraction (0–1) at Phase 4 fire
    */
-  initAllPhase4Scrolling(capturedPositions = {}) {
+  initAllPhase4Scrolling(capturedFractions = {}) {
     const allConfigs = [...this.attractBandConfigs, ...this.attractExtraBandConfigs];
 
     allConfigs.forEach(({ id, dir, speed }) => {
       const track = document.getElementById(id);
       if (!track) return;
 
-      // Capture previous half-width from --marquee-dist (set during Phase 3b for original bands)
-      const marqueeDist = track.style.getPropertyValue('--marquee-dist');
-      const prevHalfW   = marqueeDist ? Math.abs(parseFloat(marqueeDist)) : null;
-      const capturedX   = capturedPositions[id] ?? null;
+      const frac = capturedFractions[id] ?? null;
 
-      // Clear frozen inline transform so measurements reflect true new font size
+      // Clear frozen inline transform / animation
       track.style.transform = '';
       track.style.animation = '';
 
-      const seed = track.querySelector('.attract-item');
-      if (!seed) return;
-      const text = seed.textContent;
+      if (frac !== null) {
+        // ── Original band: items are already in the DOM (from Phase 3). ──
+        // Font just snapped to small; no rebuild needed — just remeasure.
+        track.style.justifyContent = 'flex-start';
+        track.style.width = 'max-content';
+        void track.offsetWidth;
 
-      const band  = track.closest('.attract-band');
-      const bandW = band?.getBoundingClientRect().width ?? 1080;
-      const itemW = seed.getBoundingClientRect().width;
-      if (!itemW) return;
+        const halfW = track.scrollWidth / 2;
+        const delay = -(frac * speed);
 
-      const copies = Math.max(6, Math.ceil((bandW * 3) / itemW) + 2);
-
-      track.innerHTML = '';
-      for (let i = 0; i < copies * 2; i++) {
-        const s = document.createElement('span');
-        s.className   = 'attract-item';
-        s.textContent = text;
-        track.appendChild(s);
-      }
-
-      track.style.justifyContent = 'flex-start';
-      track.style.width = 'max-content';
-      void track.offsetWidth; // force layout so scrollWidth is accurate at new font size
-
-      const halfW = track.scrollWidth / 2;
-
-      let delay = 0;
-      if (capturedX !== null && prevHalfW) {
-        // Resume: map captured pixel position (in old large-font half-width space) to a fraction,
-        // then apply as negative delay in the new small-font animation.
-        // LTR keyframe: 0 → -prevHalfW  (capturedX ∈ [-prevHalfW, 0])
-        // RTL keyframe: -prevHalfW → 0  (capturedX ∈ [-prevHalfW, 0])
-        let frac;
-        if (dir === 'ltr') {
-          frac = Math.max(0, Math.min(1, -capturedX / prevHalfW));
-        } else {
-          frac = Math.max(0, Math.min(1, (prevHalfW + capturedX) / prevHalfW));
-        }
-        delay = -(frac * speed);
+        track.style.setProperty('--marquee-dist', `-${halfW}px`);
+        const animName = dir === 'ltr' ? 'attractScrollLTR-px' : 'attractScrollRTL-px';
+        track.style.animation = `${animName} ${speed}s linear ${delay.toFixed(3)}s infinite`;
       } else {
-        // Extra bands: start near visually centred position
+        // ── Extra band: build track content from scratch. ──
+        const seed = track.querySelector('.attract-item');
+        if (!seed) return;
+        const text = seed.textContent;
+
+        const band  = track.closest('.attract-band');
+        const bandW = band?.getBoundingClientRect().width ?? 1080;
+        const itemW = seed.getBoundingClientRect().width;
+        if (!itemW) return;
+
+        const copies = Math.max(6, Math.ceil((bandW * 3) / itemW) + 2);
+
+        // Build in a document fragment for an atomic DOM swap (no paint flicker)
+        const frag = document.createDocumentFragment();
+        for (let i = 0; i < copies * 2; i++) {
+          const s = document.createElement('span');
+          s.className   = 'attract-item';
+          s.textContent = text;
+          frag.appendChild(s);
+        }
+        track.innerHTML = '';
+        track.appendChild(frag);
+
+        track.style.justifyContent = 'flex-start';
+        track.style.width = 'max-content';
+        void track.offsetWidth;
+
+        const halfW = track.scrollWidth / 2;
+
+        // Start near visually centred position
         const centerOffset = (bandW - itemW) / 2;
+        let delay = 0;
         if (dir === 'ltr') {
           const f = Math.max(0, -centerOffset) / halfW;
           delay = -(f * speed);
@@ -581,11 +568,11 @@ class UIController {
           const f = 1 + Math.min(0, centerOffset) / halfW;
           delay = -(Math.max(0, f) * speed);
         }
-      }
 
-      track.style.setProperty('--marquee-dist', `-${halfW}px`);
-      const animName = dir === 'ltr' ? 'attractScrollLTR-px' : 'attractScrollRTL-px';
-      track.style.animation = `${animName} ${speed}s linear ${delay.toFixed(3)}s infinite`;
+        track.style.setProperty('--marquee-dist', `-${halfW}px`);
+        const animName = dir === 'ltr' ? 'attractScrollLTR-px' : 'attractScrollRTL-px';
+        track.style.animation = `${animName} ${speed}s linear ${delay.toFixed(3)}s infinite`;
+      }
     });
   }
 
@@ -612,13 +599,8 @@ class UIController {
       if (bands) bands.classList.add('attract-phase-2');
     });
 
-    // Phase 3a – text grows in place
+    // Phase 3 – text grows AND scrolls simultaneously
     at(this.attractGrowMs, () => {
-      this.startAttractGrow();
-    });
-
-    // Phase 3b – scroll starts (after grow transition completes)
-    at(this.attractScrollMs, () => {
       this.startAttractScroll();
     });
 
