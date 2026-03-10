@@ -1035,7 +1035,6 @@ body {
   z-index: 3;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.6s ease;
 }
 .attract-grid.visible {
   opacity: 1;
