@@ -945,7 +945,7 @@ body {
   background: #000;
 }
 
-/* Three stacked horizontal colour bands that reveal one-by-one */
+/* ── Three stacked colour bands ── */
 .attract-bands {
   position: absolute;
   inset: 0;
@@ -956,7 +956,7 @@ body {
 
 .attract-band {
   position: relative;
-  flex: 0 0 0;        /* flex-basis: 0; grows via flex-grow below */
+  flex: 0 0 0;
   min-height: 0;
   overflow: hidden;
   display: flex;
@@ -965,83 +965,109 @@ body {
   transition: flex-grow 0.9s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Phase 0 (default): teal fills everything, magenta & lime hidden */
+/* Phase 0 (default) */
 .attract-band-teal    { background: #03eabb; flex-grow: 1; }
 .attract-band-magenta { background: #fc36fe; flex-grow: 0; }
 .attract-band-lime    { background: #dfff96; flex-grow: 0; }
 
-/* Phase 1: magenta slides up (~47 % of screen) */
+/* Phase 1: magenta slides up */
 .attract-bands.attract-phase-1 .attract-band-teal    { flex-grow: 1.11; }
 .attract-bands.attract-phase-1 .attract-band-magenta { flex-grow: 1;    }
 
-/* Phase 2: lime slides up — all three equal thirds */
+/* Phase 2: lime slides up — all three thirds */
 .attract-bands.attract-phase-2 .attract-band-teal    { flex-grow: 1.10; }
 .attract-bands.attract-phase-2 .attract-band-magenta { flex-grow: 1;    }
 .attract-bands.attract-phase-2 .attract-band-lime    { flex-grow: 1.05; }
 
-/* --- Static text (phases 0–2) --- */
-.attract-text-static {
-  font-family: var(--font-schrifted);
-  font-weight: 400;               /* Regular — matches Figma spec */
-  font-size: clamp(2rem, 7.5vh, 9rem);
-  color: #000;
-  letter-spacing: -0.05em;
-  line-height: 1;
-  text-transform: uppercase;
-  white-space: nowrap;
-  position: relative;
-  z-index: 1;
-  transition: opacity 0.35s ease;
-}
-
-/* --- Marquee wrap (hidden until scroll phase) --- */
-.attract-marquee-wrap {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  overflow: hidden;
-  opacity: 0;
-  transition: opacity 0.35s ease;
-}
-
-.attract-bands.attract-scrolling .attract-text-static {
-  opacity: 0;
-  pointer-events: none;
-}
-.attract-bands.attract-scrolling .attract-marquee-wrap {
-  opacity: 1;
-}
-
-/* --- Marquee track & items --- */
+/* ── Single text item per band (starts small, grows in Phase 3) ── */
 .attract-track {
   display: flex;
   align-items: center;
-  white-space: nowrap;
+  justify-content: center;   /* centres the single seed item */
+  width: 100%;
   will-change: transform;
-  /* animation applied inline by JS */
 }
 
 .attract-item {
   font-family: var(--font-schrifted);
-  font-weight: 400;               /* Regular */
-  font-size: clamp(8rem, 36.5vh, 48rem);
+  font-weight: 400;
+  font-size: clamp(2rem, 7.5vh, 9rem);   /* small in phases 0-2 */
   color: #000;
   letter-spacing: -0.05em;
   line-height: 1;
   padding: 0 clamp(0.5rem, 2vw, 3rem);
   text-transform: uppercase;
+  white-space: nowrap;
   flex-shrink: 0;
+  transition: font-size 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Phase 3a — text grows in place */
+.attract-bands.attract-growing .attract-item {
+  font-size: clamp(8rem, 36.5vh, 48rem);
+}
+
+/* Phase 3b — scrolling: track overflows, items stay large with no transition */
+.attract-bands.attract-scrolling .attract-track {
+  justify-content: flex-start;
+  width: max-content;
+}
+.attract-bands.attract-scrolling .attract-item {
+  font-size: clamp(8rem, 36.5vh, 48rem);
+  transition: none;
 }
 
 @keyframes attractScrollLTR {
   from { transform: translateX(0); }
   to   { transform: translateX(-50%); }
 }
-
 @keyframes attractScrollRTL {
   from { transform: translateX(-50%); }
   to   { transform: translateX(0); }
+}
+
+/* ── Phase 4: full-screen multi-row scrolling grid ── */
+.attract-grid {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  z-index: 3;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.6s ease;
+}
+.attract-grid.visible {
+  opacity: 1;
+}
+
+.attract-grid-row {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+}
+.attract-grid-teal    { background: #03eabb; }
+.attract-grid-magenta { background: #fc36fe; }
+.attract-grid-lime    { background: #dfff96; }
+
+.attract-grid-track {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  will-change: transform;
+}
+.attract-grid-item {
+  font-family: var(--font-schrifted);
+  font-weight: 400;
+  font-size: clamp(4rem, 9vh, 11rem);
+  color: #000;
+  letter-spacing: -0.05em;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+  padding: 0 clamp(0.4rem, 1.5vw, 2rem);
+  flex-shrink: 0;
 }
 
 /* Demo leaderboard panel — slides up from the bottom */

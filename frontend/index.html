@@ -10,33 +10,27 @@
 <body>
   <div id="game-container" class="game-container">
     <section id="screen-demo" class="screen screen-demo">
-      <!-- Attract: three colour bands that reveal one-by-one, then scroll -->
+      <!-- Attract: three colour bands that reveal one-by-one, then text grows + scrolls -->
       <div class="attract-bands" id="attract-bands">
         <div class="attract-band attract-band-teal">
-          <span class="attract-text-static">PLAY TO WIN!</span>
-          <div class="attract-marquee-wrap">
-            <div class="attract-track" id="attract-track-0">
-              <span class="attract-item">PLAY TO WIN!</span><span class="attract-item">PLAY TO WIN!</span><span class="attract-item">PLAY TO WIN!</span><span class="attract-item">PLAY TO WIN!</span><span class="attract-item">PLAY TO WIN!</span><span class="attract-item">PLAY TO WIN!</span>
-            </div>
+          <div class="attract-track" id="attract-track-0">
+            <span class="attract-item">PLAY TO WIN!</span>
           </div>
         </div>
         <div class="attract-band attract-band-magenta">
-          <span class="attract-text-static">$1,000</span>
-          <div class="attract-marquee-wrap">
-            <div class="attract-track" id="attract-track-1">
-              <span class="attract-item">$1,000</span><span class="attract-item">$1,000</span><span class="attract-item">$1,000</span><span class="attract-item">$1,000</span><span class="attract-item">$1,000</span><span class="attract-item">$1,000</span>
-            </div>
+          <div class="attract-track" id="attract-track-1">
+            <span class="attract-item">$1,000</span>
           </div>
         </div>
         <div class="attract-band attract-band-lime">
-          <span class="attract-text-static">CASH</span>
-          <div class="attract-marquee-wrap">
-            <div class="attract-track" id="attract-track-2">
-              <span class="attract-item">CASH</span><span class="attract-item">CASH</span><span class="attract-item">CASH</span><span class="attract-item">CASH</span><span class="attract-item">CASH</span><span class="attract-item">CASH</span><span class="attract-item">CASH</span><span class="attract-item">CASH</span>
-            </div>
+          <div class="attract-track" id="attract-track-2">
+            <span class="attract-item">CASH</span>
           </div>
         </div>
       </div>
+
+      <!-- Phase 4: full-screen multi-row scrolling grid (built by JS) -->
+      <div class="attract-grid" id="attract-grid"></div>
 
       <!-- Leaderboard panel: slides up from the bottom -->
       <div id="demo-lb-panel" class="demo-lb-panel">
