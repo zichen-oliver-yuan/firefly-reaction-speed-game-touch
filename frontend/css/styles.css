@@ -1028,7 +1028,7 @@ body {
 }
 .attract-bands.attract-phase4 .attract-item {
   font-size: clamp(2rem, 7.5vh, 9rem);
-  transition: font-size 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: none;
 }
 
 @keyframes attractScrollLTR {
