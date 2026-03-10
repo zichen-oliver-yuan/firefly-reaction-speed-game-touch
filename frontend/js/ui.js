@@ -24,23 +24,30 @@ class UIController {
     this.attractTimers    = [];
     this.attractLbVisible = false;
 
-    // Timing (ms from cycle start)
+    // ── Phase timing (ms from cycle start) ──
     this.attractReveal1Ms = 1500;   // Phase 1: magenta slides up
     this.attractReveal2Ms = 2500;   // Phase 2: lime slides up
-    this.attractGrowMs    = 3800;   // Phase 3a: text grows in place (font-size transition)
-    this.attractScrollMs  = 4800;   // Phase 3b: scroll starts (1 s after grow begins)
-    this.attractGridMs    = 9500;   // Phase 4: zoom-out transition
-    this.attractLbShowMs  = 14000;  // Leaderboard slides up (4.5s of Phase 4 visible)
-    this.attractLbHideMs  = 24000;  // Leaderboard hides → restart cycle (~24s total)
+    this.attractGrowMs    = 3800;   // Phase 3: text grows + scrolls simultaneously
+    this.attractGridMs    = 9500;   // Phase 4: zoom-out (all 12 bands)
+    this.attractLbShowMs  = 14000;  // Leaderboard slides up
+    this.attractLbHideMs  = 24000;  // Leaderboard hides → restart cycle
 
-    // Per-band config (text, direction, speed)
+    // ── Marquee speed per band ──
+    // "speed" = animation duration in seconds for one full loop.
+    //   Lower number = FASTER scroll   (e.g. 3 = fast)
+    //   Higher number = SLOWER scroll   (e.g. 12 = slow)
+    //
+    // Phase 3 uses the attractBandConfigs speeds (3 original bands).
+    // Phase 4 uses ALL band speeds (original 3 + extra 9).
+
+    // Original 3 bands (visible from Phase 3 onwards)
     this.attractBandConfigs = [
       { id: 'attract-track-0', text: 'PLAY TO WIN!', dir: 'ltr', speed: 7 },
       { id: 'attract-track-1', text: '$1,000',       dir: 'rtl', speed: 5 },
       { id: 'attract-track-2', text: 'CASH',         dir: 'ltr', speed: 9 },
     ];
 
-    // Extra bands for Phase 4 zoom-out (rows 4–12)
+    // Extra 9 bands (appear in Phase 4 zoom-out, rows 4–12)
     this.attractExtraBandConfigs = [
       { id: 'attract-track-3',  text: 'PLAY TO WIN!', dir: 'rtl', speed: 6   },
       { id: 'attract-track-4',  text: '$1,000',        dir: 'ltr', speed: 8   },
@@ -438,7 +445,9 @@ class UIController {
       const { itemW, bandW } = measurements[i];
       if (!itemW) return;
 
-      const copies = Math.max(4, Math.ceil((bandW * 3) / itemW) + 1);
+      // 5× band-width per half → 10× total. Ensures text always overflows the
+      // screen at both large (Phase 3) AND small (Phase 4) font sizes.
+      const copies = Math.max(8, Math.ceil((bandW * 5) / itemW) + 2);
 
       track.innerHTML = '';
       for (let j = 0; j < copies * 2; j++) {
@@ -539,7 +548,8 @@ class UIController {
         const itemW = seed.getBoundingClientRect().width;
         if (!itemW) return;
 
-        const copies = Math.max(6, Math.ceil((bandW * 3) / itemW) + 2);
+        // 5× band-width per half → always wider than the screen
+        const copies = Math.max(8, Math.ceil((bandW * 5) / itemW) + 2);
 
         // Build in a document fragment for an atomic DOM swap (no paint flicker)
         const frag = document.createDocumentFragment();
