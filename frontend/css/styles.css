@@ -945,7 +945,7 @@ body {
   background: #000;
 }
 
-/* Three stacked horizontal color bands */
+/* Three stacked horizontal colour bands that reveal one-by-one */
 .attract-bands {
   position: absolute;
   inset: 0;
@@ -955,33 +955,81 @@ body {
 }
 
 .attract-band {
-  flex: 1;
+  position: relative;
+  flex: 0 0 0;        /* flex-basis: 0; grows via flex-grow below */
+  min-height: 0;
   overflow: hidden;
   display: flex;
   align-items: center;
+  justify-content: center;
+  transition: flex-grow 0.9s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.attract-band-teal    { background: #03eabb; }
-.attract-band-magenta { background: #fc36fe; }
-.attract-band-lime    { background: #dfff96; }
+/* Phase 0 (default): teal fills everything, magenta & lime hidden */
+.attract-band-teal    { background: #03eabb; flex-grow: 1; }
+.attract-band-magenta { background: #fc36fe; flex-grow: 0; }
+.attract-band-lime    { background: #dfff96; flex-grow: 0; }
 
-/* Scrolling text track — one continuous strip, two sets of items for seamless loop */
+/* Phase 1: magenta slides up (~47 % of screen) */
+.attract-bands.attract-phase-1 .attract-band-teal    { flex-grow: 1.11; }
+.attract-bands.attract-phase-1 .attract-band-magenta { flex-grow: 1;    }
+
+/* Phase 2: lime slides up — all three equal thirds */
+.attract-bands.attract-phase-2 .attract-band-teal    { flex-grow: 1.10; }
+.attract-bands.attract-phase-2 .attract-band-magenta { flex-grow: 1;    }
+.attract-bands.attract-phase-2 .attract-band-lime    { flex-grow: 1.05; }
+
+/* --- Static text (phases 0–2) --- */
+.attract-text-static {
+  font-family: var(--font-schrifted);
+  font-weight: 400;               /* Regular — matches Figma spec */
+  font-size: clamp(2rem, 7.5vh, 9rem);
+  color: #000;
+  letter-spacing: -0.05em;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+  position: relative;
+  z-index: 1;
+  transition: opacity 0.35s ease;
+}
+
+/* --- Marquee wrap (hidden until scroll phase) --- */
+.attract-marquee-wrap {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+
+.attract-bands.attract-scrolling .attract-text-static {
+  opacity: 0;
+  pointer-events: none;
+}
+.attract-bands.attract-scrolling .attract-marquee-wrap {
+  opacity: 1;
+}
+
+/* --- Marquee track & items --- */
 .attract-track {
   display: flex;
   align-items: center;
   white-space: nowrap;
   will-change: transform;
-  /* animation set inline per-band so speeds can differ */
+  /* animation applied inline by JS */
 }
 
 .attract-item {
   font-family: var(--font-schrifted);
-  font-weight: 900;
-  font-size: clamp(10rem, 27vh, 32rem);
+  font-weight: 400;               /* Regular */
+  font-size: clamp(8rem, 36.5vh, 48rem);
   color: #000;
-  letter-spacing: -0.04em;
+  letter-spacing: -0.05em;
   line-height: 1;
-  padding: 0 clamp(1.5rem, 4vw, 4rem);
+  padding: 0 clamp(0.5rem, 2vw, 3rem);
   text-transform: uppercase;
   flex-shrink: 0;
 }
@@ -1010,6 +1058,20 @@ body {
 
 .demo-lb-panel.visible {
   transform: translateY(0);
+}
+
+/* Demo leaderboard header — lime bg (matches the final attract band colour) */
+.demo-lb-header {
+  background: #dfff96;
+  color: #000;
+  font-family: var(--font-schrifted);
+  font-weight: 900;
+  font-size: clamp(3.6rem, 9.6vw, 10.4rem);
+  letter-spacing: -0.03em;
+  line-height: 1;
+  text-align: center;
+  padding: clamp(24px, 4vh, 56px) clamp(16px, 3vw, 32px);
+  flex-shrink: 0;
 }
 
 /* "PLAY" button — always on top of both attract and demo-lb-panel */

@@ -20,16 +20,20 @@ class UIController {
     this.lastTimeValue = null;
     this.lastScoreValue = null;
 
-    // Demo attract cycle: bands show for attractBandMs, then leaderboard slides up for attractLbMs
-    this.attractCycleTimer = null;
-    this.attractBandMs   = 9000;
-    this.attractLbMs     = 11000;
+    // Attract cycle timers (multi-step: reveal → scroll → leaderboard → repeat)
+    this.attractTimers    = [];
     this.attractLbVisible = false;
+
+    // Timing (ms from cycle start)
+    this.attractReveal1Ms = 1500;   // teal only → teal + magenta
+    this.attractReveal2Ms = 2500;   // → all three bands
+    this.attractScrollMs  = 3800;   // → large scrolling marquee
+    this.attractLbShowMs  = 9500;   // → leaderboard slides up
+    this.attractLbHideMs  = 19500;  // → leaderboard hides, cycle restarts
 
     this.initializeCountdownGrid();
     this.setupLedResizeHandler();
     this.setupLeaderboardUX();
-    this.startAttractMarquee();
   }
 
   updateState(state, nav = {}) {
@@ -244,8 +248,8 @@ class UIController {
     const button = document.getElementById('leaderboard-back-top-btn');
     if (!button) return;
 
-    // Never show on the game-end leaderboard — HOME button handles navigation there.
-    if (this.currentScreen === 'leaderboard') {
+    // Never show on game-end leaderboard (HOME button handles that) or demo screen.
+    if (this.currentScreen === 'leaderboard' || this.currentScreen === 'demo') {
       button.classList.add('hidden');
       return;
     }
@@ -337,18 +341,6 @@ class UIController {
     // countdown-grid removed in new design — no-op kept for safety
   }
 
-  /** Kick off the CSS marquee animations on the attract bands. */
-  startAttractMarquee() {
-    // Tracks 0 and 2 scroll left-to-right; track 1 scrolls right-to-left for variety.
-    const speeds = [7, 5, 9]; // seconds per full loop
-    const directions = ['attractScrollLTR', 'attractScrollRTL', 'attractScrollLTR'];
-    speeds.forEach((speed, i) => {
-      const track = document.getElementById(`attract-track-${i}`);
-      if (!track) return;
-      track.style.animation = `${directions[i]} ${speed}s linear infinite`;
-    });
-  }
-
   /** Show or hide the demo leaderboard panel. */
   setDemoLeaderboardVisible(visible) {
     const panel = document.getElementById('demo-lb-panel');
@@ -357,31 +349,78 @@ class UIController {
     panel.classList.toggle('visible', visible);
   }
 
-  /** Start the attract cycle: bands → leaderboard → bands … */
+  /** Reset all attract phase classes and stop marquee animations. */
+  resetAttractPhase() {
+    const bands = document.getElementById('attract-bands');
+    if (bands) {
+      bands.classList.remove('attract-phase-1', 'attract-phase-2', 'attract-scrolling');
+    }
+    for (let i = 0; i < 3; i++) {
+      const track = document.getElementById(`attract-track-${i}`);
+      if (track) track.style.animation = '';
+    }
+  }
+
+  /** Activate the large scrolling marquee (phase 3). */
+  startAttractScroll() {
+    const bands = document.getElementById('attract-bands');
+    if (!bands) return;
+    bands.classList.add('attract-scrolling');
+    // tracks 0 & 2 scroll LTR, track 1 (magenta) RTL for variety
+    const speeds     = [7, 5, 9];
+    const directions = ['attractScrollLTR', 'attractScrollRTL', 'attractScrollLTR'];
+    speeds.forEach((speed, i) => {
+      const track = document.getElementById(`attract-track-${i}`);
+      if (!track) return;
+      track.style.animation = `${directions[i]} ${speed}s linear infinite`;
+    });
+  }
+
+  /** Start the multi-step attract cycle. */
   startAttractCycle() {
     this.stopAttractCycle();
-    // Begin by loading leaderboard data, then start the cycle.
+    this.resetAttractPhase();
     this.setDemoLeaderboardVisible(false);
-    const tick = () => {
-      if (this.attractLbVisible) {
-        // Hide leaderboard → show bands
-        this.setDemoLeaderboardVisible(false);
-        this.attractCycleTimer = setTimeout(tick, this.attractBandMs);
-      } else {
-        // Show leaderboard
-        this.setDemoLeaderboardVisible(true);
-        this.attractCycleTimer = setTimeout(tick, this.attractLbMs);
-      }
+
+    const at = (delay, fn) => {
+      const t = setTimeout(fn, delay);
+      this.attractTimers.push(t);
     };
-    this.attractCycleTimer = setTimeout(tick, this.attractBandMs);
+
+    const bands = document.getElementById('attract-bands');
+
+    // Phase 1 – magenta slides up
+    at(this.attractReveal1Ms, () => {
+      if (bands) bands.classList.add('attract-phase-1');
+    });
+
+    // Phase 2 – lime slides up (all three equal thirds)
+    at(this.attractReveal2Ms, () => {
+      if (bands) bands.classList.add('attract-phase-2');
+    });
+
+    // Phase 3 – large scrolling marquee
+    at(this.attractScrollMs, () => {
+      this.startAttractScroll();
+    });
+
+    // Leaderboard slides up
+    at(this.attractLbShowMs, () => {
+      this.setDemoLeaderboardVisible(true);
+    });
+
+    // Leaderboard hides → restart cycle
+    at(this.attractLbHideMs, () => {
+      this.setDemoLeaderboardVisible(false);
+      this.startAttractCycle();
+    });
   }
 
   stopAttractCycle() {
-    if (this.attractCycleTimer) {
-      clearTimeout(this.attractCycleTimer);
-      this.attractCycleTimer = null;
-    }
+    this.attractTimers.forEach((t) => clearTimeout(t));
+    this.attractTimers = [];
     this.setDemoLeaderboardVisible(false);
+    this.resetAttractPhase();
   }
 
   initializeButtonGrid() {
