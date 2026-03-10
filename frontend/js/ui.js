@@ -32,6 +32,11 @@ class UIController {
     this.attractLbShowMs  = 14000;  // Leaderboard slides up
     this.attractLbHideMs  = 24000;  // Leaderboard hides → restart cycle
 
+    // ── Phase 4 speed multiplier ──
+    // Multiplies each band's "speed" value in Phase 4 to control scroll velocity.
+    // Higher = slower scroll.  1 = same speed as Phase 3.  3 = 3× slower.
+    this.phase4SpeedScale = 3;
+
     // ── Marquee speed per band ──
     // "speed" = animation duration in seconds for one full loop.
     //   Lower number = FASTER scroll   (e.g. 3 = fast)
@@ -518,6 +523,8 @@ class UIController {
       const track = document.getElementById(id);
       if (!track) return;
 
+      // Apply Phase 4 speed scale so the longer tracks don't scroll too fast
+      const dur = speed * this.phase4SpeedScale;
       const frac = capturedFractions[id] ?? null;
 
       // Clear frozen inline transform / animation
@@ -532,11 +539,11 @@ class UIController {
         void track.offsetWidth;
 
         const halfW = track.scrollWidth / 2;
-        const delay = -(frac * speed);
+        const delay = -(frac * dur);
 
         track.style.setProperty('--marquee-dist', `-${halfW}px`);
         const animName = dir === 'ltr' ? 'attractScrollLTR-px' : 'attractScrollRTL-px';
-        track.style.animation = `${animName} ${speed}s linear ${delay.toFixed(3)}s infinite`;
+        track.style.animation = `${animName} ${dur}s linear ${delay.toFixed(3)}s infinite`;
       } else {
         // ── Extra band: build track content from scratch. ──
         const seed = track.querySelector('.attract-item');
@@ -573,15 +580,15 @@ class UIController {
         let delay = 0;
         if (dir === 'ltr') {
           const f = Math.max(0, -centerOffset) / halfW;
-          delay = -(f * speed);
+          delay = -(f * dur);
         } else {
           const f = 1 + Math.min(0, centerOffset) / halfW;
-          delay = -(Math.max(0, f) * speed);
+          delay = -(Math.max(0, f) * dur);
         }
 
         track.style.setProperty('--marquee-dist', `-${halfW}px`);
         const animName = dir === 'ltr' ? 'attractScrollLTR-px' : 'attractScrollRTL-px';
-        track.style.animation = `${animName} ${speed}s linear ${delay.toFixed(3)}s infinite`;
+        track.style.animation = `${animName} ${dur}s linear ${delay.toFixed(3)}s infinite`;
       }
     });
   }
