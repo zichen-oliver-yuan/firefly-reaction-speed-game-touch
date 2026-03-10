@@ -29,9 +29,9 @@ class UIController {
     this.attractReveal2Ms = 2500;   // Phase 2: lime slides up
     this.attractGrowMs    = 3800;   // Phase 3a: text grows in place (font-size transition)
     this.attractScrollMs  = 4800;   // Phase 3b: scroll starts (1 s after grow begins)
-    this.attractGridMs    = 9500;   // Phase 4: multi-row grid fades in
-    this.attractLbShowMs  = 10200;  // Leaderboard slides up over grid
-    this.attractLbHideMs  = 20200;  // Leaderboard hides → restart cycle
+    this.attractGridMs    = 9500;   // Phase 4: zoom-out transition
+    this.attractLbShowMs  = 14000;  // Leaderboard slides up (4.5s of Phase 4 visible)
+    this.attractLbHideMs  = 24000;  // Leaderboard hides → restart cycle (~24s total)
 
     // Per-band config (text, direction, speed)
     this.attractBandConfigs = [
@@ -380,6 +380,7 @@ class UIController {
     if (bands) {
       // Disable flex-grow transitions so bands snap instantly (no glimpse of colours)
       bands.querySelectorAll('.attract-band').forEach(b => { b.style.transition = 'none'; });
+      void bands.offsetHeight; // force synchronous reflow so transition:none takes effect
       bands.classList.remove('attract-phase-1', 'attract-phase-2', 'attract-growing', 'attract-scrolling', 'attract-phase4');
       // Re-enable transitions on the next paint
       requestAnimationFrame(() => {
@@ -387,33 +388,24 @@ class UIController {
       });
     }
 
-    // Rebuild each original track with a single seed item (small font-size)
-    this.attractBandConfigs.forEach(({ id, text }) => {
-      const track = document.getElementById(id);
-      if (!track) return;
-      track.style.animation     = '';
-      track.style.justifyContent = '';
-      track.style.width          = '';
-      track.innerHTML = '';
-      const s = document.createElement('span');
-      s.className   = 'attract-item';
-      s.textContent = text;
-      track.appendChild(s);
-    });
-
-    // Reset extra band tracks to a single seed item
-    this.attractExtraBandConfigs.forEach(({ id, text }) => {
+    const resetTrack = (id, text) => {
       const track = document.getElementById(id);
       if (!track) return;
       track.style.animation      = '';
       track.style.justifyContent = '';
       track.style.width          = '';
+      track.style.removeProperty('--marquee-dist');
       track.innerHTML = '';
       const s = document.createElement('span');
       s.className   = 'attract-item';
       s.textContent = text;
       track.appendChild(s);
-    });
+    };
+
+    // Rebuild each original track with a single seed item (small font-size)
+    this.attractBandConfigs.forEach(({ id, text }) => resetTrack(id, text));
+    // Reset extra band tracks to a single seed item
+    this.attractExtraBandConfigs.forEach(({ id, text }) => resetTrack(id, text));
   }
 
   /** Phase 3a — add CSS class so each band's single item grows via font-size transition. */
@@ -518,6 +510,64 @@ class UIController {
     // the Phase 4 font-size transition. Track scrolling continues via inline styles.
     bands.classList.remove('attract-scrolling');
     bands.classList.add('attract-phase4');
+    // After the flex-grow + font-size transitions complete (~0.9s), re-init all 12 bands
+    // with pixel-exact scroll animations so there are no sub-pixel seam gaps.
+    const t = setTimeout(() => this.initAllPhase4Scrolling(), 950);
+    this.attractTimers.push(t);
+  }
+
+  /**
+   * Re-initialise all 12 band tracks with pixel-exact scrolling after Phase 4 transition
+   * completes. Measures actual item widths at small font size and uses --marquee-dist
+   * (a CSS custom property) so the animation distance is exact to the pixel.
+   */
+  initAllPhase4Scrolling() {
+    const allConfigs = [...this.attractBandConfigs, ...this.attractExtraBandConfigs];
+
+    allConfigs.forEach(({ id, dir, speed }) => {
+      const track = document.getElementById(id);
+      if (!track) return;
+
+      const seed = track.querySelector('.attract-item');
+      if (!seed) return;
+      const text = seed.textContent;
+
+      const bandW = track.closest('.attract-band')?.offsetWidth ?? 1080;
+      const itemW = seed.offsetWidth;
+      if (!itemW) return;
+
+      // Enough copies so one half of the track covers > 2× the band width
+      const copies = Math.max(6, Math.ceil((bandW * 3) / itemW) + 2);
+
+      track.innerHTML = '';
+      for (let i = 0; i < copies * 2; i++) {
+        const s = document.createElement('span');
+        s.className   = 'attract-item';
+        s.textContent = text;
+        track.appendChild(s);
+      }
+
+      track.style.justifyContent = 'flex-start';
+      track.style.width = 'max-content';
+
+      // Measure exact half-track width after layout to eliminate sub-pixel seam gaps
+      const halfW = track.scrollWidth / 2;
+
+      // Compute starting offset so text appears near-center on first frame
+      const centerOffset = (bandW - itemW) / 2;
+      let delay = 0;
+      if (dir === 'ltr') {
+        const f = Math.max(0, -centerOffset) / halfW;
+        delay = -(f * speed);
+      } else {
+        const f = 1 + Math.min(0, centerOffset) / halfW;
+        delay = -(Math.max(0, f) * speed);
+      }
+
+      track.style.setProperty('--marquee-dist', `-${halfW}px`);
+      const animName = dir === 'ltr' ? 'attractScrollLTR-px' : 'attractScrollRTL-px';
+      track.style.animation = `${animName} ${speed}s linear ${delay.toFixed(3)}s infinite`;
+    });
   }
 
   /** Start the multi-step attract cycle. */

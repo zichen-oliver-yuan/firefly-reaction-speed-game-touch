@@ -1040,6 +1040,16 @@ body {
   to   { transform: translateX(0); }
 }
 
+/* Pixel-exact variants (Phase 4): use --marquee-dist set inline to avoid sub-pixel seam gaps */
+@keyframes attractScrollLTR-px {
+  from { transform: translateX(0); }
+  to   { transform: translateX(var(--marquee-dist)); }
+}
+@keyframes attractScrollRTL-px {
+  from { transform: translateX(var(--marquee-dist)); }
+  to   { transform: translateX(0); }
+}
+
 
 /* Demo leaderboard panel — slides up from the bottom */
 .demo-lb-panel {
