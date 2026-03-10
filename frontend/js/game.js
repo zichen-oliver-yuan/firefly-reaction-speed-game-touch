@@ -197,7 +197,7 @@ class Game {
       window.ui.updateGameStats(this.hits, this.misses, this.wrongWhacks);
     }
     this.startSessionCountdown();
-    this.scheduleNextMole();
+    this.spawnMole(); // no gap — first mole spawns immediately
   }
 
   randomBetween(min, max) {
@@ -359,7 +359,7 @@ class Game {
       return;
     }
 
-    const nextIndex = this.randomInt(0, 24);
+    const nextIndex = this.randomInt(0, 53);
     this.activeMoleIndex = nextIndex;
     this.activeMoleType = Math.random() < this.redButtonProbability ? 'red' : 'good';
     this.currentReactionStart = performance.now();
@@ -381,7 +381,7 @@ class Game {
     });
 
     if (window.ui) {
-      window.ui.lightButton(this.activeMoleIndex, this.activeMoleType);
+      window.ui.lightButton(this.activeMoleIndex, this.activeMoleType, visibleDuration);
       if (this.activeMoleType === 'red') {
         window.ui.showGameStatus('Avoid red button!', 'bad');
       } else {
@@ -512,7 +512,7 @@ class Game {
     }
 
     this.clearActiveMole();
-    this.scheduleNextMole();
+    this.spawnMole(); // no gap — next mole spawns immediately after a hit
   }
 
   handleWrongPress() {
@@ -607,6 +607,7 @@ class Game {
     });
     if (window.ui) {
       window.ui.clearLitButton();
+      window.ui.showMissedOverlay(700);
       window.ui.updateScore(this.score);
       window.ui.updateGameStats(this.hits, this.misses, this.wrongWhacks);
       window.ui.animateScoreBreakdown([

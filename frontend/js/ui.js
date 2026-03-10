@@ -339,10 +339,10 @@ class UIController {
   initializeButtonGrid() {
     const grid = document.getElementById('button-grid');
     if (!grid) return;
-    if (grid.children.length === 25) return;
+    if (grid.children.length === 54) return;
 
     grid.innerHTML = '';
-    for (let i = 0; i < 25; i++) {
+    for (let i = 0; i < 54; i++) {
       const button = document.createElement('div');
       button.className = 'game-button';
       button.dataset.index = i;
@@ -350,6 +350,22 @@ class UIController {
       button.setAttribute('aria-label', `Button ${i + 1}`);
       grid.appendChild(button);
     }
+  }
+
+  /** Flash the MISSED! overlay for a short duration. */
+  showMissedOverlay(durationMs = 700) {
+    const el = document.getElementById('missed-overlay');
+    if (!el) return;
+    el.classList.remove('hidden');
+    clearTimeout(this._missedOverlayTimeout);
+    this._missedOverlayTimeout = setTimeout(() => {
+      el.classList.add('hidden');
+    }, durationMs);
+  }
+
+  hideMissedOverlay() {
+    const el = document.getElementById('missed-overlay');
+    if (el) el.classList.add('hidden');
   }
 
   updateTutorialStep() {
@@ -583,30 +599,70 @@ class UIController {
     if (!button) return;
 
     button.classList.remove('pressed');
-    void button.offsetWidth;
+    void button.offsetWidth; // force reflow so re-adding 'pressed' re-triggers transition
     button.classList.add('pressed');
 
-    setTimeout(() => {
-      button.classList.remove('pressed');
-    }, 380);
+    // Remove press state after animation completes; also clean up any lingering lit classes.
+    clearTimeout(this._pressEffectTimeout);
+    this._pressEffectTimeout = setTimeout(() => {
+      button.classList.remove('pressed', 'lit', 'lit-red');
+    }, 200);
   }
 
-  lightButton(buttonIndex, type = 'good') {
+  /**
+   * Light a specific grid button and start the grow animation.
+   * @param {number} buttonIndex  - which cell to highlight
+   * @param {string} type         - 'good' | 'red'
+   * @param {number} growDurationMs - how long the cells take to fill (= reaction window)
+   */
+  lightButton(buttonIndex, type = 'good', growDurationMs = 1000) {
+    const grid = document.getElementById('button-grid');
     const buttons = document.querySelectorAll('#button-grid .game-button');
-    buttons.forEach((btn) => btn.classList.remove('lit', 'lit-red'));
+
+    // Clear any previous state
+    clearTimeout(this._pressEffectTimeout);
+    buttons.forEach((btn) => btn.classList.remove('lit', 'lit-red', 'pressed'));
+
+    // Mark target button
     if (buttons[buttonIndex]) {
       buttons[buttonIndex].classList.add(type === 'red' ? 'lit-red' : 'lit');
     }
+
+    this.hideMissedOverlay();
+
+    // Set duration and reset to scale(0) (no transition) before starting grow
+    if (grid) {
+      grid.classList.remove('grid-growing');
+      grid.style.setProperty('--grow-duration', `${growDurationMs}ms`);
+    }
+
+    // Double rAF: ensures the scale(0) state is painted before grow begins
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (grid) grid.classList.add('grid-growing');
+      });
+    });
   }
 
   clearLitButton() {
+    const grid = document.getElementById('button-grid');
     const buttons = document.querySelectorAll('#button-grid .game-button');
-    buttons.forEach((btn) => btn.classList.remove('lit', 'lit-red'));
+
+    // Leave 'pressed' class on the tapped button — emitPressEffect owns its cleanup
+    buttons.forEach((btn) => {
+      if (!btn.classList.contains('pressed')) {
+        btn.classList.remove('lit', 'lit-red');
+      }
+    });
+
+    // Removing grid-growing snaps all cells to scale(0) instantly (transition: 0ms default)
+    if (grid) grid.classList.remove('grid-growing');
   }
 
   prepareGameScreen() {
     this.showScreen('game');
     this.clearLitButton();
+    this.hideMissedOverlay();
     this.showGameStatus('START!!', 'good');
   }
 
