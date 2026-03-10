@@ -24,20 +24,45 @@ class UIController {
     this.attractTimers    = [];
     this.attractLbVisible = false;
 
-    // Timing (ms from cycle start)
+    // ── Phase timing (ms from cycle start) ──
     this.attractReveal1Ms = 1500;   // Phase 1: magenta slides up
     this.attractReveal2Ms = 2500;   // Phase 2: lime slides up
-    this.attractGrowMs    = 3800;   // Phase 3a: text grows in place (font-size transition)
-    this.attractScrollMs  = 4800;   // Phase 3b: scroll starts (1 s after grow begins)
-    this.attractGridMs    = 9500;   // Phase 4: multi-row grid fades in
-    this.attractLbShowMs  = 10200;  // Leaderboard slides up over grid
-    this.attractLbHideMs  = 20200;  // Leaderboard hides → restart cycle
+    this.attractGrowMs    = 3800;   // Phase 3: text grows + scrolls simultaneously
+    this.attractGridMs    = 9500;   // Phase 4: zoom-out (all 12 bands)
+    this.attractLbShowMs  = 14000;  // Leaderboard slides up
+    this.attractLbHideMs  = 24000;  // Leaderboard hides → restart cycle
 
-    // Per-band config (text, direction, speed)
+    // ── Phase 4 speed multiplier ──
+    // Multiplies each band's "speed" value in Phase 4 to control scroll velocity.
+    // Higher = slower scroll.  1 = same speed as Phase 3.  3 = 3× slower.
+    this.phase4SpeedScale = 3;
+
+    // ── Marquee speed per band ──
+    // "speed" = animation duration in seconds for one full loop.
+    //   Lower number = FASTER scroll   (e.g. 3 = fast)
+    //   Higher number = SLOWER scroll   (e.g. 12 = slow)
+    //
+    // Phase 3 uses the attractBandConfigs speeds (3 original bands).
+    // Phase 4 uses ALL band speeds (original 3 + extra 9).
+
+    // Original 3 bands (visible from Phase 3 onwards)
     this.attractBandConfigs = [
       { id: 'attract-track-0', text: 'PLAY TO WIN!', dir: 'ltr', speed: 7 },
       { id: 'attract-track-1', text: '$1,000',       dir: 'rtl', speed: 5 },
       { id: 'attract-track-2', text: 'CASH',         dir: 'ltr', speed: 9 },
+    ];
+
+    // Extra 9 bands (appear in Phase 4 zoom-out, rows 4–12)
+    this.attractExtraBandConfigs = [
+      { id: 'attract-track-3',  text: 'PLAY TO WIN!', dir: 'rtl', speed: 6   },
+      { id: 'attract-track-4',  text: '$1,000',        dir: 'ltr', speed: 8   },
+      { id: 'attract-track-5',  text: 'CASH',          dir: 'rtl', speed: 4.5 },
+      { id: 'attract-track-6',  text: 'PLAY TO WIN!', dir: 'ltr', speed: 7   },
+      { id: 'attract-track-7',  text: '$1,000',        dir: 'rtl', speed: 5   },
+      { id: 'attract-track-8',  text: 'CASH',          dir: 'ltr', speed: 9   },
+      { id: 'attract-track-9',  text: 'PLAY TO WIN!', dir: 'rtl', speed: 6   },
+      { id: 'attract-track-10', text: '$1,000',        dir: 'ltr', speed: 8   },
+      { id: 'attract-track-11', text: 'CASH',          dir: 'rtl', speed: 4.5 },
     ];
 
     this.initializeCountdownGrid();
@@ -367,60 +392,57 @@ class UIController {
     if (bands) {
       // Disable flex-grow transitions so bands snap instantly (no glimpse of colours)
       bands.querySelectorAll('.attract-band').forEach(b => { b.style.transition = 'none'; });
-      bands.classList.remove('attract-phase-1', 'attract-phase-2', 'attract-growing', 'attract-scrolling');
+      void bands.offsetHeight; // force synchronous reflow so transition:none takes effect
+      bands.classList.remove('attract-phase-1', 'attract-phase-2', 'attract-growing', 'attract-scrolling', 'attract-phase4');
       // Re-enable transitions on the next paint
       requestAnimationFrame(() => {
         bands.querySelectorAll('.attract-band').forEach(b => { b.style.transition = ''; });
       });
     }
 
-    // Rebuild each track with a single seed item (small font-size)
-    this.attractBandConfigs.forEach(({ id, text }) => {
+    const resetTrack = (id, text) => {
       const track = document.getElementById(id);
       if (!track) return;
-      track.style.animation     = '';
+      track.style.animation      = '';
+      track.style.transform      = '';
       track.style.justifyContent = '';
       track.style.width          = '';
+      track.style.removeProperty('--marquee-dist');
       track.innerHTML = '';
       const s = document.createElement('span');
       s.className   = 'attract-item';
       s.textContent = text;
       track.appendChild(s);
-    });
+    };
 
-    this.hideAttractGrid();
-  }
-
-  /** Phase 3a — add CSS class so each band's single item grows via font-size transition. */
-  startAttractGrow() {
-    const bands = document.getElementById('attract-bands');
-    if (bands) bands.classList.add('attract-growing');
+    // Rebuild each original track with a single seed item (small font-size)
+    this.attractBandConfigs.forEach(({ id, text }) => resetTrack(id, text));
+    // Reset extra band tracks to a single seed item
+    this.attractExtraBandConfigs.forEach(({ id, text }) => resetTrack(id, text));
   }
 
   /**
-   * Phase 3b — fill tracks with duplicated items and start scrolling.
-   * Calculates a negative animation-delay so the scroll STARTS from the
-   * visually centred position (no jump).
+   * Phase 3 — grow text AND scroll simultaneously.
+   * 1. Builds track copies at current (small) font size
+   * 2. Starts a percentage-based scroll animation (-50% auto-adapts as items grow)
+   * 3. Adds attract-growing class → items transition from small to large font
    */
   startAttractScroll() {
     const bands = document.getElementById('attract-bands');
     if (!bands) return;
 
-    // 1. Measure current single items (they're at large size from attract-growing CSS)
+    // 1. Measure current single items at small font
     const measurements = this.attractBandConfigs.map(({ id }) => {
       const track = document.getElementById(id);
       const seed  = track?.querySelector('.attract-item');
       return {
-        itemW: seed?.offsetWidth  ?? 0,
-        bandW: track?.closest('.attract-band')?.offsetWidth ?? 1080,
+        itemW: seed?.getBoundingClientRect().width ?? 0,
+        bandW: track?.closest('.attract-band')?.getBoundingClientRect().width ?? 1080,
       };
     });
 
-    // 2. Switch from growing → scrolling (items will render large, transition: none)
-    bands.classList.remove('attract-growing');
-    bands.classList.add('attract-scrolling');
-
-    // 3. Build each track
+    // 2. Build each track with copies at small size and start percentage-based scroll.
+    //    Using -50% keyframes means the loop adapts automatically as items grow.
     this.attractBandConfigs.forEach(({ id, text, dir, speed }, i) => {
       const track = document.getElementById(id);
       if (!track) return;
@@ -428,8 +450,9 @@ class UIController {
       const { itemW, bandW } = measurements[i];
       if (!itemW) return;
 
-      // Enough copies so the 50 %-keyframe covers > 2 × band width
-      const copies = Math.max(4, Math.ceil((bandW * 3) / itemW) + 1);
+      // 5× band-width per half → 10× total. Ensures text always overflows the
+      // screen at both large (Phase 3) AND small (Phase 4) font sizes.
+      const copies = Math.max(8, Math.ceil((bandW * 5) / itemW) + 2);
 
       track.innerHTML = '';
       for (let j = 0; j < copies * 2; j++) {
@@ -439,82 +462,135 @@ class UIController {
         track.appendChild(s);
       }
 
-      // Compute negative animation-delay so the first visible frame shows the
-      // text at the same centred position the growing item just held.
-      // centerOffset = (bandW - itemW) / 2  (negative when text > band)
-      const centerOffset = (bandW - itemW) / 2;
-      const halfTrackW   = copies * itemW;
-      let delay = 0;
-
-      if (dir === 'ltr') {
-        // LTR: translateX goes 0 → -halfTrackW
-        // We want start pos = centerOffset  →  f = -centerOffset / halfTrackW
-        const f = Math.max(0, -centerOffset) / halfTrackW;
-        delay = -(f * speed);
-      } else {
-        // RTL: translateX goes -halfTrackW → 0
-        // We want start pos = centerOffset  →  f = 1 + centerOffset/halfTrackW
-        const f = 1 + Math.min(0, centerOffset) / halfTrackW;
-        delay = -(Math.max(0, f) * speed);
-      }
+      track.style.justifyContent = 'flex-start';
+      track.style.width = 'max-content';
 
       const animName = dir === 'ltr' ? 'attractScrollLTR' : 'attractScrollRTL';
-      track.style.animation = `${animName} ${speed}s linear ${delay.toFixed(3)}s infinite`;
+      track.style.animation = `${animName} ${speed}s linear infinite`;
     });
+
+    // 3. Force layout at small size, then trigger grow transition.
+    //    Items transition from small → large while already scrolling.
+    void bands.offsetHeight;
+    bands.classList.add('attract-growing');
   }
 
-  /** Build the Phase 4 multi-row grid (runs once; idempotent). */
-  initAttractGrid() {
-    const grid = document.getElementById('attract-grid');
-    if (!grid || grid.dataset.initialized) return;
+  /** Phase 4: zoom-out — compress all 12 bands to equal height via flex-grow transition. */
+  showAttractPhase4() {
+    const bands = document.getElementById('attract-bands');
+    if (!bands) return;
 
-    const rows = [
-      { color: 'teal',    text: 'PLAY TO WIN!', anim: 'attractScrollLTR', speed: 7    },
-      { color: 'magenta', text: '$1,000',        anim: 'attractScrollRTL', speed: 5    },
-      { color: 'lime',    text: 'CASH',          anim: 'attractScrollLTR', speed: 9    },
-      { color: 'teal',    text: 'PLAY TO WIN!', anim: 'attractScrollRTL', speed: 6    },
-      { color: 'magenta', text: '$1,000',        anim: 'attractScrollLTR', speed: 8    },
-      { color: 'lime',    text: 'CASH',          anim: 'attractScrollRTL', speed: 4.5  },
-      { color: 'teal',    text: 'PLAY TO WIN!', anim: 'attractScrollLTR', speed: 7    },
-      { color: 'magenta', text: '$1,000',        anim: 'attractScrollRTL', speed: 5    },
-      { color: 'lime',    text: 'CASH',          anim: 'attractScrollLTR', speed: 9    },
-      { color: 'teal',    text: 'PLAY TO WIN!', anim: 'attractScrollRTL', speed: 6    },
-      { color: 'magenta', text: '$1,000',        anim: 'attractScrollLTR', speed: 8    },
-      { color: 'lime',    text: 'CASH',          anim: 'attractScrollRTL', speed: 4.5  },
-    ];
-
-    rows.forEach(({ color, text, anim, speed }) => {
-      const row   = document.createElement('div');
-      row.className = `attract-grid-row attract-grid-${color}`;
-
-      const track = document.createElement('div');
-      track.className = 'attract-grid-track';
-      track.style.animation = `${anim} ${speed}s linear infinite`;
-
-      for (let i = 0; i < 10; i++) {
-        const span = document.createElement('span');
-        span.className   = 'attract-grid-item';
-        span.textContent = text;
-        track.appendChild(span);
+    // Capture each Phase 3 track's scroll fraction and freeze it in place.
+    // Fraction = how far through the animation cycle (0–1).
+    const capturedFractions = {};
+    this.attractBandConfigs.forEach(({ id, dir }) => {
+      const track = document.getElementById(id);
+      if (!track) return;
+      const x = new DOMMatrix(window.getComputedStyle(track).transform).m41;
+      const halfW = track.scrollWidth / 2;
+      let frac = 0;
+      if (halfW > 0) {
+        frac = dir === 'ltr'
+          ? Math.max(0, Math.min(1, -x / halfW))
+          : Math.max(0, Math.min(1, (halfW + x) / halfW));
       }
-
-      row.appendChild(track);
-      grid.appendChild(row);
+      capturedFractions[id] = frac;
+      // Freeze: stop animation, hold position via inline transform
+      track.style.animation = 'none';
+      track.style.transform  = `translateX(${x}px)`;
     });
 
-    grid.dataset.initialized = '1';
+    // Remove attract-growing (its font-size rule has higher specificity than Phase 4).
+    // font-size will snap instantly to small (transition: none from Phase 4 CSS).
+    bands.classList.remove('attract-growing', 'attract-scrolling');
+    bands.classList.add('attract-phase4');
+
+    // Short delay so the browser lays out at the new small font size before we measure.
+    const t = setTimeout(() => this.initAllPhase4Scrolling(capturedFractions), 50);
+    this.attractTimers.push(t);
   }
 
-  showAttractGrid() {
-    const grid = document.getElementById('attract-grid');
-    if (!grid) return;
-    this.initAttractGrid();
-    grid.classList.add('visible');
-  }
+  /**
+   * Re-initialise all 12 band tracks with pixel-exact scrolling at Phase 4 small font size.
+   * Original 3 bands keep their existing DOM (no rebuild flicker) — just remeasure and restart.
+   * Extra 9 bands are built via document fragment for atomic DOM swap.
+   * @param {Object} capturedFractions – map of track id → cycle fraction (0–1) at Phase 4 fire
+   */
+  initAllPhase4Scrolling(capturedFractions = {}) {
+    const allConfigs = [...this.attractBandConfigs, ...this.attractExtraBandConfigs];
 
-  hideAttractGrid() {
-    const grid = document.getElementById('attract-grid');
-    if (grid) grid.classList.remove('visible');
+    allConfigs.forEach(({ id, dir, speed }) => {
+      const track = document.getElementById(id);
+      if (!track) return;
+
+      // Apply Phase 4 speed scale so the longer tracks don't scroll too fast
+      const dur = speed * this.phase4SpeedScale;
+      const frac = capturedFractions[id] ?? null;
+
+      // Clear frozen inline transform / animation
+      track.style.transform = '';
+      track.style.animation = '';
+
+      if (frac !== null) {
+        // ── Original band: items are already in the DOM (from Phase 3). ──
+        // Font just snapped to small; no rebuild needed — just remeasure.
+        track.style.justifyContent = 'flex-start';
+        track.style.width = 'max-content';
+        void track.offsetWidth;
+
+        const halfW = track.scrollWidth / 2;
+        const delay = -(frac * dur);
+
+        track.style.setProperty('--marquee-dist', `-${halfW}px`);
+        const animName = dir === 'ltr' ? 'attractScrollLTR-px' : 'attractScrollRTL-px';
+        track.style.animation = `${animName} ${dur}s linear ${delay.toFixed(3)}s infinite`;
+      } else {
+        // ── Extra band: build track content from scratch. ──
+        const seed = track.querySelector('.attract-item');
+        if (!seed) return;
+        const text = seed.textContent;
+
+        const band  = track.closest('.attract-band');
+        const bandW = band?.getBoundingClientRect().width ?? 1080;
+        const itemW = seed.getBoundingClientRect().width;
+        if (!itemW) return;
+
+        // 5× band-width per half → always wider than the screen
+        const copies = Math.max(8, Math.ceil((bandW * 5) / itemW) + 2);
+
+        // Build in a document fragment for an atomic DOM swap (no paint flicker)
+        const frag = document.createDocumentFragment();
+        for (let i = 0; i < copies * 2; i++) {
+          const s = document.createElement('span');
+          s.className   = 'attract-item';
+          s.textContent = text;
+          frag.appendChild(s);
+        }
+        track.innerHTML = '';
+        track.appendChild(frag);
+
+        track.style.justifyContent = 'flex-start';
+        track.style.width = 'max-content';
+        void track.offsetWidth;
+
+        const halfW = track.scrollWidth / 2;
+
+        // Start near visually centred position
+        const centerOffset = (bandW - itemW) / 2;
+        let delay = 0;
+        if (dir === 'ltr') {
+          const f = Math.max(0, -centerOffset) / halfW;
+          delay = -(f * dur);
+        } else {
+          const f = 1 + Math.min(0, centerOffset) / halfW;
+          delay = -(Math.max(0, f) * dur);
+        }
+
+        track.style.setProperty('--marquee-dist', `-${halfW}px`);
+        const animName = dir === 'ltr' ? 'attractScrollLTR-px' : 'attractScrollRTL-px';
+        track.style.animation = `${animName} ${dur}s linear ${delay.toFixed(3)}s infinite`;
+      }
+    });
   }
 
   /** Start the multi-step attract cycle. */
@@ -540,19 +616,14 @@ class UIController {
       if (bands) bands.classList.add('attract-phase-2');
     });
 
-    // Phase 3a – text grows in place
+    // Phase 3 – text grows AND scrolls simultaneously
     at(this.attractGrowMs, () => {
-      this.startAttractGrow();
-    });
-
-    // Phase 3b – scroll starts (after grow transition completes)
-    at(this.attractScrollMs, () => {
       this.startAttractScroll();
     });
 
-    // Phase 4 – multi-row grid fades in
+    // Phase 4 – zoom-out: bands compress to 1/12 height, extra rows rise into view
     at(this.attractGridMs, () => {
-      this.showAttractGrid();
+      this.showAttractPhase4();
     });
 
     // Leaderboard slides up over grid
