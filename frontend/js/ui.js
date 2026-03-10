@@ -20,19 +20,22 @@ class UIController {
     this.lastTimeValue = null;
     this.lastScoreValue = null;
 
-    this.tutorialData = {
-      copy: 'Press the lit green buttons as soon as you can. Avoid the red ones :) That\'s it.'
-    };
+    // Demo attract cycle: bands show for attractBandMs, then leaderboard slides up for attractLbMs
+    this.attractCycleTimer = null;
+    this.attractBandMs   = 9000;
+    this.attractLbMs     = 11000;
+    this.attractLbVisible = false;
 
     this.initializeCountdownGrid();
-    this.updateTutorialStep();
     this.setupLedResizeHandler();
     this.setupLeaderboardUX();
+    this.startAttractMarquee();
   }
 
   updateState(state, nav = {}) {
     if (state !== 'demo') {
       this.stopDemoRefresh();
+      this.stopAttractCycle();
     }
 
     switch (state) {
@@ -40,13 +43,11 @@ class UIController {
         this.showScreen('demo', nav.direction);
         this.clearLeadFormData();
         this.startDemoRefresh();
-        break;
-      case 'tutorial':
-        this.showScreen('tutorial', nav.direction);
-        this.updateTutorialStep();
+        this.startAttractCycle();
         break;
       case 'countdown':
         this.showScreen('countdown', nav.direction);
+        this.stopAttractCycle();
         break;
       case 'game_start':
       case 'game_play':
@@ -241,9 +242,17 @@ class UIController {
 
   updateBackTopButtonVisibility() {
     const button = document.getElementById('leaderboard-back-top-btn');
+    if (!button) return;
+
+    // Never show on the game-end leaderboard — HOME button handles navigation there.
+    if (this.currentScreen === 'leaderboard') {
+      button.classList.add('hidden');
+      return;
+    }
+
     const list = this.getActiveLeaderboardList();
-    if (!button || !list) {
-      if (button) button.classList.add('hidden');
+    if (!list) {
+      button.classList.add('hidden');
       return;
     }
 
@@ -325,15 +334,54 @@ class UIController {
   }
 
   initializeCountdownGrid() {
-    const grid = document.getElementById('countdown-grid');
-    if (!grid || grid.children.length === 25) return;
+    // countdown-grid removed in new design — no-op kept for safety
+  }
 
-    grid.innerHTML = '';
-    for (let i = 0; i < 25; i++) {
-      const dot = document.createElement('div');
-      dot.className = 'game-button';
-      grid.appendChild(dot);
+  /** Kick off the CSS marquee animations on the attract bands. */
+  startAttractMarquee() {
+    // Tracks 0 and 2 scroll left-to-right; track 1 scrolls right-to-left for variety.
+    const speeds = [7, 5, 9]; // seconds per full loop
+    const directions = ['attractScrollLTR', 'attractScrollRTL', 'attractScrollLTR'];
+    speeds.forEach((speed, i) => {
+      const track = document.getElementById(`attract-track-${i}`);
+      if (!track) return;
+      track.style.animation = `${directions[i]} ${speed}s linear infinite`;
+    });
+  }
+
+  /** Show or hide the demo leaderboard panel. */
+  setDemoLeaderboardVisible(visible) {
+    const panel = document.getElementById('demo-lb-panel');
+    if (!panel) return;
+    this.attractLbVisible = visible;
+    panel.classList.toggle('visible', visible);
+  }
+
+  /** Start the attract cycle: bands → leaderboard → bands … */
+  startAttractCycle() {
+    this.stopAttractCycle();
+    // Begin by loading leaderboard data, then start the cycle.
+    this.setDemoLeaderboardVisible(false);
+    const tick = () => {
+      if (this.attractLbVisible) {
+        // Hide leaderboard → show bands
+        this.setDemoLeaderboardVisible(false);
+        this.attractCycleTimer = setTimeout(tick, this.attractBandMs);
+      } else {
+        // Show leaderboard
+        this.setDemoLeaderboardVisible(true);
+        this.attractCycleTimer = setTimeout(tick, this.attractLbMs);
+      }
+    };
+    this.attractCycleTimer = setTimeout(tick, this.attractBandMs);
+  }
+
+  stopAttractCycle() {
+    if (this.attractCycleTimer) {
+      clearTimeout(this.attractCycleTimer);
+      this.attractCycleTimer = null;
     }
+    this.setDemoLeaderboardVisible(false);
   }
 
   initializeButtonGrid() {
@@ -465,21 +513,18 @@ class UIController {
         const row = document.createElement('div');
         row.className = 'leaderboard-entry player-highlight';
         row.innerHTML = `
-          <span>${playerSummary.placement ? playerSummary.placement.rank : '-'}</span>
+          <span>${playerSummary.placement ? '#' + playerSummary.placement.rank : '-'}</span>
           <span>${this.toDisplayName(playerSummary.playerData.name || 'YOU')}</span>
           <span class="leaderboard-score">${playerSummary.playerData.totalScore || 0}${includePtsSuffix ? 'PTS' : ''}</span>
         `;
         listEl.appendChild(row);
+      } else {
+        const empty = document.createElement('div');
+        empty.className = 'leaderboard-entry leaderboard-message';
+        empty.textContent = 'PLAY TO JOIN THE LEADERBOARD!';
+        listEl.appendChild(empty);
       }
-
-      const empty = document.createElement('div');
-      empty.className = 'leaderboard-entry leaderboard-message';
-      empty.textContent = 'PLAY TO JOIN THE LEADERBOARD!';
-      listEl.appendChild(empty);
-      const endMessage = document.createElement('div');
-      endMessage.className = 'leaderboard-entry leaderboard-message';
-      endMessage.textContent = 'PLAY TO JOIN THE LEADERBOARD!';
-      listEl.appendChild(endMessage);
+      this.updateBackTopButtonVisibility();
       return;
     }
 
@@ -488,9 +533,8 @@ class UIController {
       ? Number(playerSummary.placement.rank) || 1
       : 1;
 
-    // If the player's entry already exists in the fetched leaderboard (score
-    // was synced before this render), highlight it in-place instead of
-    // injecting a duplicate row.
+    // If the player's entry already exists in the fetched leaderboard (score was synced
+    // before this render), highlight it in-place instead of injecting a duplicate row.
     const playerScore = hasPlayer ? Number(playerSummary.playerData.totalScore) : null;
     const playerName  = hasPlayer ? (playerSummary.playerData.name || '').trim().toLowerCase() : null;
     const playerAlreadyInList = hasPlayer && leaderboard.some(
@@ -500,16 +544,19 @@ class UIController {
     const insertIndex = Math.max(0, Math.min(leaderboard.length, placementRank - 1));
     let playerInserted = playerAlreadyInList;
 
+    // Build rows array first so we can tag near-player rows after the fact.
+    const rowEls = [];
+
     leaderboard.forEach((entry, index) => {
       if (hasPlayer && !playerAlreadyInList && !playerInserted && index === insertIndex) {
         const playerRow = document.createElement('div');
         playerRow.className = 'leaderboard-entry player-highlight';
         playerRow.innerHTML = `
-          <span>${playerSummary.placement ? playerSummary.placement.rank : '-'}</span>
+          <span>${playerSummary.placement ? '#' + playerSummary.placement.rank : '-'}</span>
           <span>${this.toDisplayName(playerSummary.playerData.name || 'YOU')}</span>
           <span class="leaderboard-score">${playerSummary.playerData.totalScore || 0}${includePtsSuffix ? 'PTS' : ''}</span>
         `;
-        listEl.appendChild(playerRow);
+        rowEls.push(playerRow);
         playerInserted = true;
       }
 
@@ -523,26 +570,36 @@ class UIController {
         <span>${this.toDisplayName(entry.name)}</span>
         <span class="leaderboard-score">${entry.score || 0}${includePtsSuffix ? 'PTS' : ''}</span>
       `;
-      listEl.appendChild(row);
+      rowEls.push(row);
     });
 
     if (hasPlayer && !playerInserted) {
       const playerRow = document.createElement('div');
       playerRow.className = 'leaderboard-entry player-highlight';
       playerRow.innerHTML = `
-        <span>${playerSummary.placement ? playerSummary.placement.rank : '-'}</span>
+        <span>${playerSummary.placement ? '#' + playerSummary.placement.rank : '-'}</span>
         <span>${this.toDisplayName(playerSummary.playerData.name || 'YOU')}</span>
         <span class="leaderboard-score">${playerSummary.playerData.totalScore || 0}${includePtsSuffix ? 'PTS' : ''}</span>
       `;
-      listEl.appendChild(playerRow);
+      rowEls.push(playerRow);
     }
 
     if (!hasPlayer) {
       const endMessage = document.createElement('div');
       endMessage.className = 'leaderboard-entry leaderboard-message';
       endMessage.textContent = 'PLAY TO JOIN THE LEADERBOARD!';
-      listEl.appendChild(endMessage);
+      rowEls.push(endMessage);
     }
+
+    // Tag the rows immediately adjacent to the player-highlight as near-player
+    // so they get a slightly higher opacity in the dark theme.
+    const playerIdx = rowEls.findIndex(r => r.classList.contains('player-highlight'));
+    if (playerIdx !== -1) {
+      if (rowEls[playerIdx - 1]) rowEls[playerIdx - 1].classList.add('near-player');
+      if (rowEls[playerIdx + 1]) rowEls[playerIdx + 1].classList.add('near-player');
+    }
+
+    rowEls.forEach(r => listEl.appendChild(r));
     this.updateBackTopButtonVisibility();
   }
 
@@ -558,15 +615,6 @@ class UIController {
       listEl.scrollTop = targetTop;
       this.updateBackTopButtonVisibility();
     }
-
-    const subtitle = document.getElementById('leaderboard-subtitle');
-    if (subtitle && playerSummary && playerSummary.placement) {
-      const total = Math.max(1, playerSummary.placement.totalPlayers || 1);
-      const percent = Math.round((Math.max(0, playerSummary.placement.fasterThanCount || 0) / total) * 100);
-      subtitle.textContent = `YOU BEAT ${percent}% OF THE PLAYERS`;
-      subtitle.dataset.baseText = subtitle.textContent;
-    }
-    this.refreshLedMarquee();
 
     void playerName;
   }
@@ -740,13 +788,21 @@ class UIController {
   }
 
   updatePreGameCountdown(seconds) {
-    const countdownEl = document.getElementById('pre-game-countdown-value');
-    if (countdownEl) {
-      const value = String(Math.max(0, seconds));
-      countdownEl.textContent = value;
-      countdownEl.dataset.baseText = value;
-    }
-    this.refreshLedMarquee();
+    const display = document.getElementById('countdown-display');
+    const numEl   = document.getElementById('pre-game-countdown-value');
+    if (!display || !numEl) return;
+
+    const val = Math.max(0, seconds);
+
+    // Swap background colour class
+    const colourMap = { 3: 'cd-teal', 2: 'cd-magenta', 1: 'cd-lime' };
+    display.classList.remove('cd-teal', 'cd-magenta', 'cd-lime');
+    display.classList.add(colourMap[val] || 'cd-teal');
+
+    // Re-trigger pop-in animation by replacing the element clone
+    const clone = numEl.cloneNode(true);
+    clone.textContent = val > 0 ? String(val) : '';
+    numEl.replaceWith(clone);
   }
 
   showGameEnd(totalScore, avgReaction, bestReaction) {
@@ -770,10 +826,8 @@ class UIController {
   }
 
   updateCountdown(seconds) {
-    const doneBtn = document.getElementById('leaderboard-done-btn');
-    if (doneBtn) {
-      doneBtn.textContent = `DONE (${Math.max(0, seconds)})`;
-    }
+    // HOME button — just keep the label clean; no countdown number shown.
+    void seconds;
   }
 
   getLeadFormData() {

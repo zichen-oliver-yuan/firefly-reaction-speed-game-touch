@@ -10,22 +10,33 @@
 <body>
   <div id="game-container" class="game-container">
     <section id="screen-demo" class="screen screen-demo">
-      <div class="screen-shell shell-light">
-        <header class="led-header">
-          <div class="led-row led-row-title"><span id="demo-title" class="led led-title">LEADERBOARD</span></div>
-          <div class="led-row led-row-sub"><span id="demo-subtitle" class="led led-subtitle">COMPETE TO WIN PRIZE! COMPETE TO WIN PRIZE!</span></div>
-        </header>
-
-        <div class="screen-main screen-main-demo">
-          <div id="demo-leaderboard-list" class="leaderboard-list leaderboard-list-demo"></div>
+      <!-- Attract: three scrolling colour bands -->
+      <div class="attract-bands">
+        <div class="attract-band attract-band-teal">
+          <div class="attract-track" id="attract-track-0">
+            <span class="attract-item">PLAY TO WIN!</span><span class="attract-item">PLAY TO WIN!</span><span class="attract-item">PLAY TO WIN!</span><span class="attract-item">PLAY TO WIN!</span><span class="attract-item">PLAY TO WIN!</span><span class="attract-item">PLAY TO WIN!</span><span class="attract-item">PLAY TO WIN!</span><span class="attract-item">PLAY TO WIN!</span>
+          </div>
         </div>
-
-        <div class="bottom-cta-wrap">
-          <button id="demo-start-btn" class="btn btn-primary btn-ambient">CLICK TO START</button>
+        <div class="attract-band attract-band-magenta">
+          <div class="attract-track" id="attract-track-1">
+            <span class="attract-item">$1,000</span><span class="attract-item">$1,000</span><span class="attract-item">$1,000</span><span class="attract-item">$1,000</span><span class="attract-item">$1,000</span><span class="attract-item">$1,000</span><span class="attract-item">$1,000</span><span class="attract-item">$1,000</span>
+          </div>
         </div>
-
-        <img src="assets/SVG/Firefly_Lockup_Horz_DarkBlue_RGB.svg" alt="Firefly" class="logo-watermark logo-watermark-light">
+        <div class="attract-band attract-band-lime">
+          <div class="attract-track" id="attract-track-2">
+            <span class="attract-item">CASH</span><span class="attract-item">CASH</span><span class="attract-item">CASH</span><span class="attract-item">CASH</span><span class="attract-item">CASH</span><span class="attract-item">CASH</span><span class="attract-item">CASH</span><span class="attract-item">CASH</span>
+          </div>
+        </div>
       </div>
+
+      <!-- Leaderboard panel: slides up from the bottom -->
+      <div id="demo-lb-panel" class="demo-lb-panel">
+        <div class="lb-dark-header">LEADERBOARD</div>
+        <div id="demo-leaderboard-list" class="leaderboard-list leaderboard-list-demo leaderboard-list-dark"></div>
+      </div>
+
+      <!-- PLAY button always on top -->
+      <button id="demo-start-btn" class="demo-play-btn">PLAY</button>
     </section>
 
     <section id="screen-welcome" class="screen screen-welcome hidden">
@@ -34,37 +45,9 @@
       </div>
     </section>
 
-    <section id="screen-tutorial" class="screen screen-tutorial hidden">
-      <div class="screen-shell shell-light">
-        <header class="led-header">
-          <div class="led-row led-row-title"><span class="led led-title">TUTORIAL</span></div>
-          <div class="led-row led-row-sub"><span class="led led-subtitle">ARE YOU READY?</span></div>
-        </header>
-
-        <div class="screen-main tutorial-main">
-          <div id="tutorial-step" class="tutorial-step"></div>
-        </div>
-
-        <div class="bottom-cta-wrap">
-          <button id="tutorial-next" class="btn btn-primary">I'M READY</button>
-        </div>
-
-        <img src="assets/SVG/Firefly_Lockup_Horz_DarkBlue_RGB.svg" alt="Firefly" class="logo-watermark logo-watermark-light">
-      </div>
-    </section>
-
     <section id="screen-countdown" class="screen screen-countdown hidden">
-      <div class="screen-shell shell-dark">
-        <header class="led-header">
-          <div class="led-row led-row-title"><span class="led led-title">COUNTDOWN</span></div>
-          <div class="led-row led-row-sub"><span id="pre-game-countdown-value" class="led led-subtitle">3</span></div>
-        </header>
-
-        <div class="screen-main screen-main-countdown">
-          <div id="countdown-grid" class="button-grid button-grid-passive"></div>
-        </div>
-
-        <img src="assets/SVG/Firefly_Lockup_Horz_DarkBlue_RGB.svg" alt="Firefly" class="logo-watermark logo-watermark-dark">
+      <div id="countdown-display" class="countdown-display cd-teal">
+        <span id="pre-game-countdown-value" class="countdown-number">3</span>
       </div>
     </section>
 
@@ -158,21 +141,14 @@
     </section>
 
     <section id="screen-leaderboard" class="screen screen-leaderboard hidden">
-      <div class="screen-shell shell-light">
-        <header class="led-header">
-          <div class="led-row led-row-title"><span class="led led-title">LEADERBOARD</span></div>
-          <div class="led-row led-row-sub"><span id="leaderboard-subtitle" class="led led-subtitle">YOU BEAT 0% OF THE PLAYERS</span></div>
-        </header>
+      <div class="screen-shell">
+        <div class="lb-dark-header">LEADERBOARD</div>
 
-        <div class="screen-main screen-main-demo">
-          <div id="leaderboard-list" class="leaderboard-list"></div>
+        <div class="screen-main screen-main-demo" style="position:relative; flex:1; overflow:hidden;">
+          <div id="leaderboard-list" class="leaderboard-list leaderboard-list-dark"></div>
         </div>
 
-        <div class="bottom-cta-wrap bottom-cta-stack">
-          <button id="leaderboard-done-btn" class="btn btn-primary">DONE (20)</button>
-        </div>
-
-        <img src="assets/SVG/Firefly_Lockup_Horz_DarkBlue_RGB.svg" alt="Firefly" class="logo-watermark logo-watermark-light">
+        <button id="leaderboard-done-btn" class="lb-home-btn">HOME</button>
       </div>
     </section>
 
