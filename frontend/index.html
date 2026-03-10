@@ -69,26 +69,23 @@
     </section>
 
     <section id="screen-game" class="screen screen-game hidden">
-      <div class="screen-shell shell-dark">
-        <header class="led-header game-led-header">
-          <div class="hud-label-row">
-            <span class="hud-label">TIME</span>
-            <span class="hud-label">SCORE</span>
+      <div class="screen-shell isc-shell">
+        <header class="isc-game-header">
+          <div class="isc-panel isc-panel-points">
+            <span class="isc-panel-label">POINTS</span>
+            <span id="current-score" class="isc-panel-value odometer" data-value="0">0</span>
           </div>
-          <div class="led-row led-row-sub hud-value-row">
-            <span id="time-left" class="led hud-value odometer" data-value="30">30</span>
-            <span id="current-score" class="led hud-value odometer" data-value="0">0</span>
-          </div>
-          <div class="led-row led-row-sub game-status-row">
-            <span id="waiting-message" class="led led-subtitle waiting-message">START!!</span>
+          <div class="isc-panel isc-panel-time">
+            <span class="isc-panel-label">TIME LEFT</span>
+            <span id="time-left" class="isc-panel-value odometer" data-value="30">30</span>
           </div>
         </header>
 
         <div id="game-content" class="screen-main screen-main-game">
-          <div id="button-grid" class="button-grid"></div>
+          <div id="button-grid" class="button-grid isc-button-grid"></div>
+          <div id="missed-overlay" class="missed-overlay hidden">MISSED!</div>
+          <span id="waiting-message" class="led led-subtitle waiting-message sr-only">START!!</span>
         </div>
-
-        <img src="assets/SVG/Firefly_Lockup_Horz_DarkBlue_RGB.svg" alt="Firefly" class="logo-watermark logo-watermark-dark">
       </div>
     </section>
 
@@ -196,7 +193,6 @@
     </section>
 
     <button id="leaderboard-back-top-btn" class="btn btn-secondary back-top-btn hidden">BACK TO TOP</button>
-    <img src="assets/SVG/Firefly_Lockup_Horz_DarkBlue_RGB.svg" alt="Firefly" class="global-logo-watermark">
   </div>
 
   <script src="js/config.js"></script>
