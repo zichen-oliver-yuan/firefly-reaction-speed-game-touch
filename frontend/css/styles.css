@@ -948,41 +948,43 @@ body {
   background: #000;
 }
 
-/* ── Three stacked colour bands ── */
+/* ── Prerendered attract animation video ── */
+.attract-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 1;
+}
+
+/* ── Static 12-band grid (shown after video ends) ── */
 .attract-bands {
   position: absolute;
   inset: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  /* transform-origin for container scale(4→1) Phase 4 zoom-out */
-  transform-origin: top left;
+  z-index: 2;
+  /* All 12 bands equal height (Phase 4 state) */
+  opacity: 0;
+  pointer-events: none;
 }
 
 .attract-band {
   position: relative;
-  flex: 0 0 0;
+  flex-grow: 1;  /* All 12 bands equal height (Phase 4 grid) */
   min-height: 0;
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: flex-grow 0.9s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Phase 0 (default) */
-.attract-band-teal    { background: #03eabb; flex-grow: 1; }
-.attract-band-magenta { background: #fc36fe; flex-grow: 0; }
-.attract-band-lime    { background: #dfff96; flex-grow: 0; }
-
-/* Phase 1: magenta slides up */
-.attract-bands.attract-phase-1 .attract-band-teal:not(.attract-band-extra)    { flex-grow: 1.11; }
-.attract-bands.attract-phase-1 .attract-band-magenta:not(.attract-band-extra) { flex-grow: 1;    }
-
-/* Phase 2: lime slides up — all three thirds */
-.attract-bands.attract-phase-2 .attract-band-teal:not(.attract-band-extra)    { flex-grow: 1.10; }
-.attract-bands.attract-phase-2 .attract-band-magenta:not(.attract-band-extra) { flex-grow: 1;    }
-.attract-bands.attract-phase-2 .attract-band-lime:not(.attract-band-extra)    { flex-grow: 1.05; }
+/* Static 12-band grid colors */
+.attract-band-teal    { background: #03eabb; }
+.attract-band-magenta { background: #fc36fe; }
+.attract-band-lime    { background: #dfff96; }
 
 /* ── Scaler wrapper: handles Phase 2→3 grow and Phase 3→4 shrink.
    All scale animation is driven by the Web Animations API (WAAPI) in JS —

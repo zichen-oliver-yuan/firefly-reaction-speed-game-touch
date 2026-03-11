@@ -647,52 +647,32 @@ class UIController {
   /** Start the multi-step attract cycle. */
   startAttractCycle() {
     this._cycleId = ((this._cycleId ?? 0) + 1);
-    console.log(`[attract] Cycle ${this._cycleId} start`);
+    console.log(`[attract] Cycle ${this._cycleId} start (prerendered video)`);
     this.stopAttractCycle();
-    this.resetAttractPhase();
     this.setDemoLeaderboardVisible(false);
 
     const cycleId = this._cycleId;
+    const video = document.getElementById('attract-video');
+    if (!video) return;
+
+    // Play the prerendered video (9.5 seconds of Phases 1-4)
+    video.currentTime = 0;
+    video.play().catch(err => console.warn('[attract] Video play failed:', err));
+
     const at = (delay, fn) => {
       const t = setTimeout(fn, delay);
       this.attractTimers.push(t);
     };
 
-    const bands = document.getElementById('attract-bands');
-
-    // Phase 1 – magenta slides up
-    at(this.attractReveal1Ms, () => {
-      console.log(`[attract] Cycle ${cycleId} – Phase 1`);
-      if (bands) bands.classList.add('attract-phase-1');
-    });
-
-    // Phase 2 – lime slides up
-    at(this.attractReveal2Ms, () => {
-      console.log(`[attract] Cycle ${cycleId} – Phase 2`);
-      if (bands) bands.classList.add('attract-phase-2');
-    });
-
-    // Phase 3 – text grows AND scrolls simultaneously
-    at(this.attractGrowMs, () => {
-      console.log(`[attract] Cycle ${cycleId} – Phase 3 (startAttractScroll)`);
-      this.startAttractScroll();
-    });
-
-    // Phase 4 – zoom-out: bands compress to 1/12 height, extra rows rise into view
-    at(this.attractGridMs, () => {
-      console.log(`[attract] Cycle ${cycleId} – Phase 4 (showAttractPhase4)`);
-      this.showAttractPhase4();
-    });
-
-    // Leaderboard slides up over grid
-    at(this.attractLbShowMs, () => {
+    // Leaderboard slides up after video ends (at 9.5s)
+    at(this.attractGridMs + 1000, () => {
       console.log(`[attract] Cycle ${cycleId} – Leaderboard show`);
       this.setDemoLeaderboardVisible(true);
     });
 
-    // Leaderboard hides → restart cycle
+    // Leaderboard hides and video restarts the cycle
     at(this.attractLbHideMs, () => {
-      console.log(`[attract] Cycle ${cycleId} – Leaderboard hide, restarting`);
+      console.log(`[attract] Cycle ${cycleId} – Restart cycle`);
       this.setDemoLeaderboardVisible(false);
       this.startAttractCycle();
     });

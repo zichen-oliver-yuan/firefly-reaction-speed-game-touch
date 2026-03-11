@@ -10,52 +10,26 @@
 <body>
   <div id="game-container" class="game-container">
     <section id="screen-demo" class="screen screen-demo">
-      <!-- Attract: colour bands that reveal one-by-one, grow, scroll, then zoom out to 12-row grid -->
+      <!-- Attract: prerendered video of Phase 1-4 animation -->
+      <video id="attract-video" class="attract-video" autoplay loop muted playsinline>
+        <source src="assets/attract-loop.mp4" type="video/mp4">
+      </video>
+
+      <!-- Static 12-band grid overlay (shown at end of attract video) -->
       <div class="attract-bands" id="attract-bands">
-        <!-- Phase 0–3: original 3 large bands -->
-        <div class="attract-band attract-band-teal">
-          <div class="attract-track" id="attract-track-0">
-            <span class="attract-item">PLAY TO WIN!</span>
-          </div>
-        </div>
-        <div class="attract-band attract-band-magenta">
-          <div class="attract-track" id="attract-track-1">
-            <span class="attract-item">$1,000</span>
-          </div>
-        </div>
-        <div class="attract-band attract-band-lime">
-          <div class="attract-track" id="attract-track-2">
-            <span class="attract-item">CASH</span>
-          </div>
-        </div>
-        <!-- Phase 4: extra 9 bands (flex-grow: 0 until Phase 4 fires) -->
-        <div class="attract-band attract-band-extra attract-band-teal">
-          <div class="attract-track" id="attract-track-3"><span class="attract-item">PLAY TO WIN!</span></div>
-        </div>
-        <div class="attract-band attract-band-extra attract-band-magenta">
-          <div class="attract-track" id="attract-track-4"><span class="attract-item">$1,000</span></div>
-        </div>
-        <div class="attract-band attract-band-extra attract-band-lime">
-          <div class="attract-track" id="attract-track-5"><span class="attract-item">CASH</span></div>
-        </div>
-        <div class="attract-band attract-band-extra attract-band-teal">
-          <div class="attract-track" id="attract-track-6"><span class="attract-item">PLAY TO WIN!</span></div>
-        </div>
-        <div class="attract-band attract-band-extra attract-band-magenta">
-          <div class="attract-track" id="attract-track-7"><span class="attract-item">$1,000</span></div>
-        </div>
-        <div class="attract-band attract-band-extra attract-band-lime">
-          <div class="attract-track" id="attract-track-8"><span class="attract-item">CASH</span></div>
-        </div>
-        <div class="attract-band attract-band-extra attract-band-teal">
-          <div class="attract-track" id="attract-track-9"><span class="attract-item">PLAY TO WIN!</span></div>
-        </div>
-        <div class="attract-band attract-band-extra attract-band-magenta">
-          <div class="attract-track" id="attract-track-10"><span class="attract-item">$1,000</span></div>
-        </div>
-        <div class="attract-band attract-band-extra attract-band-lime">
-          <div class="attract-track" id="attract-track-11"><span class="attract-item">CASH</span></div>
-        </div>
+        <!-- Phase 4: 12 bands in grid layout -->
+        <div class="attract-band attract-band-teal"><div class="attract-track"><span class="attract-item">PLAY TO WIN!</span></div></div>
+        <div class="attract-band attract-band-magenta"><div class="attract-track"><span class="attract-item">$1,000</span></div></div>
+        <div class="attract-band attract-band-lime"><div class="attract-track"><span class="attract-item">CASH</span></div></div>
+        <div class="attract-band attract-band-teal"><div class="attract-track"><span class="attract-item">PLAY TO WIN!</span></div></div>
+        <div class="attract-band attract-band-magenta"><div class="attract-track"><span class="attract-item">$1,000</span></div></div>
+        <div class="attract-band attract-band-lime"><div class="attract-track"><span class="attract-item">CASH</span></div></div>
+        <div class="attract-band attract-band-teal"><div class="attract-track"><span class="attract-item">PLAY TO WIN!</span></div></div>
+        <div class="attract-band attract-band-magenta"><div class="attract-track"><span class="attract-item">$1,000</span></div></div>
+        <div class="attract-band attract-band-lime"><div class="attract-track"><span class="attract-item">CASH</span></div></div>
+        <div class="attract-band attract-band-teal"><div class="attract-track"><span class="attract-item">PLAY TO WIN!</span></div></div>
+        <div class="attract-band attract-band-magenta"><div class="attract-track"><span class="attract-item">$1,000</span></div></div>
+        <div class="attract-band attract-band-lime"><div class="attract-track"><span class="attract-item">CASH</span></div></div>
       </div>
 
       <!-- Leaderboard panel: slides up from the bottom -->
