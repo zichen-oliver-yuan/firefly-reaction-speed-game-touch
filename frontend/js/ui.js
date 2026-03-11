@@ -32,27 +32,25 @@ class UIController {
     this.attractLbShowMs  = 14000;  // Leaderboard slides up
     this.attractLbHideMs  = 24000;  // Leaderboard hides → restart cycle
 
-    // ── Phase 4 speed multiplier ──
-    // Multiplies each band's "speed" value in Phase 4 to control scroll velocity.
-    // Higher = slower scroll.  1 = same speed as Phase 3.  3 = 3× slower.
+    // ── Marquee speed multiplier (applies to BOTH Phase 3 and Phase 4) ──
+    // Multiplies each band's "speed" value to control scroll velocity.
+    // Higher = slower scroll.  1 = fastest.  3 = 3× slower.
     this.phase4SpeedScale = 3;
 
     // ── Marquee speed per band ──
-    // "speed" = animation duration in seconds for one full loop.
+    // "speed" = base animation duration in seconds for one full loop.
     //   Lower number = FASTER scroll   (e.g. 3 = fast)
     //   Higher number = SLOWER scroll   (e.g. 12 = slow)
-    //
-    // Phase 3 uses the attractBandConfigs speeds (3 original bands).
-    // Phase 4 uses ALL band speeds (original 3 + extra 9).
+    // Actual duration = speed × phase4SpeedScale (both phases).
 
-    // Original 3 bands (visible from Phase 3 onwards)
+    // Original 3 bands (fill screen in Phase 3, shrink to 1/12 in Phase 4)
     this.attractBandConfigs = [
       { id: 'attract-track-0', text: 'PLAY TO WIN!', dir: 'ltr', speed: 7 },
       { id: 'attract-track-1', text: '$1,000',       dir: 'rtl', speed: 5 },
       { id: 'attract-track-2', text: 'CASH',         dir: 'ltr', speed: 9 },
     ];
 
-    // Extra 9 bands (appear in Phase 4 zoom-out, rows 4–12)
+    // Extra 9 bands (tiny slivers below fold in Phase 3, grow to 1/12 in Phase 4)
     this.attractExtraBandConfigs = [
       { id: 'attract-track-3',  text: 'PLAY TO WIN!', dir: 'rtl', speed: 6   },
       { id: 'attract-track-4',  text: '$1,000',        dir: 'ltr', speed: 8   },
@@ -388,13 +386,20 @@ class UIController {
    * Rebuilds each band track back to a single seed item.
    */
   resetAttractPhase() {
+    console.log('[attract] Phase 0 – reset');
     const bands = document.getElementById('attract-bands');
     if (bands) {
-      // Disable flex-grow transitions so bands snap instantly (no glimpse of colours)
+      // Disable transitions FIRST so no in-between state is ever rendered.
+      // (Previously scale was cleared before class removal, causing a one-frame
+      // flash where attract-growing + scale(1) made all 12 bands visible.)
       bands.querySelectorAll('.attract-band').forEach(b => { b.style.transition = 'none'; });
-      void bands.offsetHeight; // force synchronous reflow so transition:none takes effect
+      // Cancel container WAAPI, then remove all classes and inline scale atomically.
+      bands.getAnimations().forEach(a => a.cancel());
       bands.classList.remove('attract-phase-1', 'attract-phase-2', 'attract-growing', 'attract-scrolling', 'attract-phase4');
-      // Re-enable transitions on the next paint
+      bands.style.scale = '';
+      // Reflow NOW — committed state is clean Phase 0 (no grow, no scale).
+      void bands.offsetHeight;
+      // Re-enable transitions on the next paint.
       requestAnimationFrame(() => {
         bands.querySelectorAll('.attract-band').forEach(b => { b.style.transition = ''; });
       });
@@ -403,6 +408,12 @@ class UIController {
     const resetTrack = (id, text) => {
       const track = document.getElementById(id);
       if (!track) return;
+      // If track was wrapped in a scaler, unwrap it back into the band
+      const scaler = track.closest('.attract-track-scaler');
+      if (scaler) {
+        scaler.parentNode.insertBefore(track, scaler);
+        scaler.remove();
+      }
       track.style.animation      = '';
       track.style.transform      = '';
       track.style.justifyContent = '';
@@ -422,42 +433,84 @@ class UIController {
   }
 
   /**
-   * Phase 3 — grow text AND scroll simultaneously.
-   * 1. Builds track copies at current (small) font size
-   * 2. Starts a percentage-based scroll animation (-50% auto-adapts as items grow)
-   * 3. Adds attract-growing class → items transition from small to large font
+   * Phase 3 — grow text AND scroll simultaneously for ALL 12 bands.
+   *
+   * Performance: font-size is set once to the large Phase 3 value (fixed).
+   * Visual scaling during Phase 2→3 and Phase 3→4 is handled by the CSS `scale`
+   * property on a wrapper (.attract-track-scaler) — compositor-only, zero layout cost.
+   *
+   * Phase 2→3 grow: scaler starts at (currentSmallFont / largeFontSize) so text
+   * appears at the Phase 2 visual size, then transitions scale to 1 — recreating
+   * the old font-size grow animation without any layout thrashing.
+   *
+   * The track itself uses `transform: translateX()` for the marquee, which
+   * composes correctly because `scale` lives on the outer wrapper.
    */
   startAttractScroll() {
+    try {
     const bands = document.getElementById('attract-bands');
-    if (!bands) return;
+    if (!bands) { console.error('[attract] startAttractScroll: #attract-bands not found'); return; }
 
-    // 1. Measure current single items at small font
-    const measurements = this.attractBandConfigs.map(({ id }) => {
+    const allConfigs = [...this.attractBandConfigs, ...this.attractExtraBandConfigs];
+    const totalH = bands.getBoundingClientRect().height;
+    console.log(`[attract] startAttractScroll: totalH=${totalH}, classes="${bands.className}"`);
+    if (totalH === 0) { console.error('[attract] startAttractScroll: totalH is 0, aborting'); return; }
+
+    // Phase 3 uses container scale(4) on .attract-bands so the top 3 of 12 equal
+    // bands visually fill the screen.  Font-size is set to the Phase 4 DOM value
+    // (totalH/12 × 0.9); container scale makes it appear 4× larger in Phase 3.
+    //   visual Phase 3 font = containerScale × largeFontSize = (totalH/3) × 0.9 ✓
+    const containerScale = 4; // 12 total bands / 3 visible in Phase 3
+    const largeFontSize = totalH / 12 * 0.9;
+
+    // Capture current (Phase 2) visual font size BEFORE we override anything.
+    // initialScale compensates for container scale so Phase 2→3 grow animation
+    // starts at the Phase 2 visual size:
+    //   visual_start = containerScale × initialScale × largeFontSize = currentSmallFontSize
+    //   → initialScale = currentSmallFontSize / (largeFontSize × containerScale)
+    //                   = currentSmallFontSize / (totalH/3 × 0.9)   (same formula as before)
+    const firstSeed = document.getElementById(allConfigs[0].id)?.querySelector('.attract-item');
+    const currentSmallFontSize = firstSeed ? parseFloat(getComputedStyle(firstSeed).fontSize) : 32;
+    const initialScale = currentSmallFontSize / (largeFontSize * containerScale);
+    console.log(`[attract] startAttractScroll: largeFontSize=${largeFontSize.toFixed(1)}, currentSmallFontSize=${currentSmallFontSize}, initialScale=${initialScale.toFixed(3)}, containerScale=${containerScale}`);
+
+    // 1. Measure seed item widths at the LARGE font size.
+    //    Temporarily set font-size on seeds to get accurate widths.
+    const seeds = allConfigs.map(({ id }) => {
       const track = document.getElementById(id);
-      const seed  = track?.querySelector('.attract-item');
-      return {
-        itemW: seed?.getBoundingClientRect().width ?? 0,
-        bandW: track?.closest('.attract-band')?.getBoundingClientRect().width ?? 1080,
-      };
+      const seed = track?.querySelector('.attract-item');
+      if (seed) seed.style.fontSize = `${largeFontSize}px`;
+      return { track, seed };
     });
+    void bands.offsetHeight; // flush font-size change for accurate measurement
 
-    // 2. Build each track with copies at small size and start percentage-based scroll.
-    //    Using -50% keyframes means the loop adapts automatically as items grow.
-    this.attractBandConfigs.forEach(({ id, text, dir, speed }, i) => {
+    const measurements = seeds.map(({ track, seed }) => ({
+      itemW: seed?.getBoundingClientRect().width ?? 0,
+      bandW: track?.closest('.attract-band')?.getBoundingClientRect().width ?? 1080,
+    }));
+
+    // 2. Build each track with copies at large font size, wrap in scaler, start scrolling.
+    //    originalScalers: rows 0-2 — get WAAPI grow animation (initialScale → 1).
+    //    Extra bands (rows 3-11): scaler set to scale(1) immediately. They are
+    //    off-screen during Phase 3 (container scale 4 pushes them below viewport)
+    //    so no visible artifact, and they are ready when Phase 4 reveals them.
+    const originalScalers = [];
+    allConfigs.forEach(({ id, text, dir, speed }, i) => {
+      const isExtra = i >= this.attractBandConfigs.length;
       const track = document.getElementById(id);
-      if (!track) return;
+      if (!track) { console.error(`[attract] startAttractScroll: track #${id} not found`); return; }
 
       const { itemW, bandW } = measurements[i];
-      if (!itemW) return;
+      if (!itemW) { console.error(`[attract] startAttractScroll: band ${i} (#${id}) itemW=0, skipping`); return; }
 
-      // 5× band-width per half → 10× total. Ensures text always overflows the
-      // screen at both large (Phase 3) AND small (Phase 4) font sizes.
-      const copies = Math.max(8, Math.ceil((bandW * 5) / itemW) + 2);
+      // Each half of the -50% loop needs to span at least the viewport width.
+      const copies = Math.max(4, Math.ceil((bandW * 1.5) / itemW) + 2);
 
       track.innerHTML = '';
       for (let j = 0; j < copies * 2; j++) {
         const s = document.createElement('span');
-        s.className   = 'attract-item';
+        s.className = 'attract-item';
+        s.style.fontSize = `${largeFontSize}px`;
         s.textContent = text;
         track.appendChild(s);
       }
@@ -465,140 +518,130 @@ class UIController {
       track.style.justifyContent = 'flex-start';
       track.style.width = 'max-content';
 
-      const animName = dir === 'ltr' ? 'attractScrollLTR' : 'attractScrollRTL';
-      track.style.animation = `${animName} ${speed}s linear infinite`;
-    });
-
-    // 3. Force layout at small size, then trigger grow transition.
-    //    Items transition from small → large while already scrolling.
-    void bands.offsetHeight;
-    bands.classList.add('attract-growing');
-  }
-
-  /** Phase 4: zoom-out — compress all 12 bands to equal height via flex-grow transition. */
-  showAttractPhase4() {
-    const bands = document.getElementById('attract-bands');
-    if (!bands) return;
-
-    // Capture each Phase 3 track's scroll fraction and freeze it in place.
-    // Fraction = how far through the animation cycle (0–1).
-    const capturedFractions = {};
-    this.attractBandConfigs.forEach(({ id, dir }) => {
-      const track = document.getElementById(id);
-      if (!track) return;
-      const x = new DOMMatrix(window.getComputedStyle(track).transform).m41;
-      const halfW = track.scrollWidth / 2;
-      let frac = 0;
-      if (halfW > 0) {
-        frac = dir === 'ltr'
-          ? Math.max(0, Math.min(1, -x / halfW))
-          : Math.max(0, Math.min(1, (halfW + x) / halfW));
+      // Wrap track in a scaler div (scale on wrapper, translateX marquee on track).
+      const band = track.closest('.attract-band');
+      let scaler = track.closest('.attract-track-scaler');
+      if (!scaler) {
+        scaler = document.createElement('div');
+        scaler.className = 'attract-track-scaler';
+        // Originals: snap to Phase 2 visual size; WAAPI will grow to scale(1).
+        // Extras: pin to scale(1) — they are off-screen (container scale(4) pushes
+        // them below the viewport) so text:band ratio is correct when revealed.
+        scaler.style.scale = isExtra ? '1' : String(initialScale);
+        band.insertBefore(scaler, track);
+        scaler.appendChild(track);
       }
-      capturedFractions[id] = frac;
-      // Freeze: stop animation, hold position via inline transform
-      track.style.animation = 'none';
-      track.style.transform  = `translateX(${x}px)`;
+      if (!isExtra) originalScalers.push(scaler);
+
+      const dur = speed * this.phase4SpeedScale;
+      const animName = dir === 'ltr' ? 'attractScrollLTR' : 'attractScrollRTL';
+      track.style.animation = `${animName} ${dur}s linear infinite`;
     });
 
-    // Remove attract-growing (its font-size rule has higher specificity than Phase 4).
-    // font-size will snap instantly to small (transition: none from Phase 4 CSS).
-    bands.classList.remove('attract-growing', 'attract-scrolling');
-    bands.classList.add('attract-phase4');
+    // 3. Snap to Phase 3 layout without any CSS flex-grow transition.
+    //    .attract-band has `transition: flex-grow 0.9s` which, if allowed to run,
+    //    would animate flex-grows from Phase 2 values (~1.05–1.10) while the
+    //    container is at scale(4) — making originals appear ~4/3× viewport height
+    //    and visually breaking Phase 3.  Suppressing it mirrors resetAttractPhase().
+    //    container scale(4) × DOM band height(1/12) = visual band height(1/3) so
+    //    the snap is invisible: bands appear the same size as in Phase 2. ✓
+    bands.querySelectorAll('.attract-band').forEach(b => { b.style.transition = 'none'; });
+    // Defensive: cancel any lingering container WAAPI before applying Phase 3 scale.
+    // A fill:forwards zoom from a previous cycle could override the inline scale='4',
+    // keeping the container at scale(1) and making all 12 bands visible.
+    const lingeringAnims = bands.getAnimations();
+    if (lingeringAnims.length) {
+      console.warn(`[attract] startAttractScroll: cancelling ${lingeringAnims.length} lingering container animation(s)`);
+      lingeringAnims.forEach(a => a.cancel());
+    }
+    bands.style.scale = String(containerScale);
+    bands.classList.add('attract-growing');
 
-    // Short delay so the browser lays out at the new small font size before we measure.
-    const t = setTimeout(() => this.initAllPhase4Scrolling(capturedFractions), 50);
-    this.attractTimers.push(t);
+    // 4. Force layout — commits all changes as one rendered frame.
+    void bands.offsetHeight;
+
+    // Re-enable flex-grow transitions for Phase 3→4 (the attract-phase4 class
+    // doesn't change flex-grow here, but restoring the rule keeps CSS consistent).
+    requestAnimationFrame(() => {
+      bands.querySelectorAll('.attract-band').forEach(b => { b.style.transition = ''; });
+    });
+
+    // 5. WAAPI grow on original bands only — fires immediately, no batching issues,
+    //    works in background tabs. Explicit keyframes guarantee the start value.
+    //    Extra band scalers stay at 1 (already correct) — no WAAPI needed.
+    console.log(`[attract] startAttractScroll: WAAPI grow on ${originalScalers.length} original scalers (initialScale=${initialScale.toFixed(3)})`);
+    originalScalers.forEach(s => {
+      const anim = s.animate(
+        [{ scale: String(initialScale) }, { scale: '1' }],
+        { duration: 900, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'forwards' }
+      );
+      anim.addEventListener('cancel', () => console.warn('[attract] scaler grow animation cancelled'));
+      anim.addEventListener('finish', () => console.log('[attract] scaler grow animation finished'));
+    });
+    console.log(`[attract] startAttractScroll: done, bands.className="${bands.className}", bands.style.scale="${bands.style.scale}"`);
+    } catch (err) { console.error('[attract] startAttractScroll threw:', err); }
   }
 
   /**
-   * Re-initialise all 12 band tracks with pixel-exact scrolling at Phase 4 small font size.
-   * Original 3 bands keep their existing DOM (no rebuild flicker) — just remeasure and restart.
-   * Extra 9 bands are built via document fragment for atomic DOM swap.
-   * @param {Object} capturedFractions – map of track id → cycle fraction (0–1) at Phase 4 fire
+   * Phase 4: zoom-out — the .attract-bands container animates scale(4 → 1).
+   *
+   * All 12 bands already have flex-grow:1 (equal DOM height = totalH/12) and
+   * their scalers at scale(1) (text at 90% of DOM band height).  The container
+   * was at scale(4) during Phase 3, showing only the top 3 bands. Animating
+   * the container to scale(1) reveals all 12 bands proportionally — a true
+   * zoom-out with zero layout recalculation per frame (compositor-only).
+   *
+   *   text:band ratio throughout = (largeFontSize × scaler(1)) / (totalH/12)
+   *                               = (totalH/12 × 0.9) / (totalH/12) = 0.9 ✓
    */
-  initAllPhase4Scrolling(capturedFractions = {}) {
-    const allConfigs = [...this.attractBandConfigs, ...this.attractExtraBandConfigs];
+  showAttractPhase4() {
+    const bands = document.getElementById('attract-bands');
+    if (!bands) { console.error('[attract] showAttractPhase4: #attract-bands not found'); return; }
+    console.log(`[attract] showAttractPhase4: bands.className="${bands.className}", bands.style.scale="${bands.style.scale}"`);
 
-    allConfigs.forEach(({ id, dir, speed }) => {
-      const track = document.getElementById(id);
-      if (!track) return;
-
-      // Apply Phase 4 speed scale so the longer tracks don't scroll too fast
-      const dur = speed * this.phase4SpeedScale;
-      const frac = capturedFractions[id] ?? null;
-
-      // Clear frozen inline transform / animation
-      track.style.transform = '';
-      track.style.animation = '';
-
-      if (frac !== null) {
-        // ── Original band: items are already in the DOM (from Phase 3). ──
-        // Font just snapped to small; no rebuild needed — just remeasure.
-        track.style.justifyContent = 'flex-start';
-        track.style.width = 'max-content';
-        void track.offsetWidth;
-
-        const halfW = track.scrollWidth / 2;
-        const delay = -(frac * dur);
-
-        track.style.setProperty('--marquee-dist', `-${halfW}px`);
-        const animName = dir === 'ltr' ? 'attractScrollLTR-px' : 'attractScrollRTL-px';
-        track.style.animation = `${animName} ${dur}s linear ${delay.toFixed(3)}s infinite`;
-      } else {
-        // ── Extra band: build track content from scratch. ──
-        const seed = track.querySelector('.attract-item');
-        if (!seed) return;
-        const text = seed.textContent;
-
-        const band  = track.closest('.attract-band');
-        const bandW = band?.getBoundingClientRect().width ?? 1080;
-        const itemW = seed.getBoundingClientRect().width;
-        if (!itemW) return;
-
-        // 5× band-width per half → always wider than the screen
-        const copies = Math.max(8, Math.ceil((bandW * 5) / itemW) + 2);
-
-        // Build in a document fragment for an atomic DOM swap (no paint flicker)
-        const frag = document.createDocumentFragment();
-        for (let i = 0; i < copies * 2; i++) {
-          const s = document.createElement('span');
-          s.className   = 'attract-item';
-          s.textContent = text;
-          frag.appendChild(s);
-        }
-        track.innerHTML = '';
-        track.appendChild(frag);
-
-        track.style.justifyContent = 'flex-start';
-        track.style.width = 'max-content';
-        void track.offsetWidth;
-
-        const halfW = track.scrollWidth / 2;
-
-        // Start near visually centred position
-        const centerOffset = (bandW - itemW) / 2;
-        let delay = 0;
-        if (dir === 'ltr') {
-          const f = Math.max(0, -centerOffset) / halfW;
-          delay = -(f * dur);
-        } else {
-          const f = 1 + Math.min(0, centerOffset) / halfW;
-          delay = -(Math.max(0, f) * dur);
-        }
-
-        track.style.setProperty('--marquee-dist', `-${halfW}px`);
-        const animName = dir === 'ltr' ? 'attractScrollLTR-px' : 'attractScrollRTL-px';
-        track.style.animation = `${animName} ${dur}s linear ${delay.toFixed(3)}s infinite`;
-      }
+    // Cancel any lingering grow WAAPI on individual scalers so they stay at scale(1).
+    bands.querySelectorAll('.attract-track-scaler').forEach(scaler => {
+      scaler.getAnimations().forEach(a => a.cancel());
+      scaler.style.scale = '1';
     });
+
+    // Cancel any prior container animation (defensive — shouldn't exist at this point).
+    const priorAnims = bands.getAnimations();
+    if (priorAnims.length) console.warn(`[attract] showAttractPhase4: cancelling ${priorAnims.length} unexpected container animation(s)`);
+    priorAnims.forEach(a => a.cancel());
+
+    void bands.offsetHeight; // commit scaler cleanup before starting container WAAPI
+
+    // WAAPI zoom-out on the container: scale(4 → 1) over 0.9 s (compositor-only).
+    // fill:'none' so the animation does NOT linger after it ends — otherwise the
+    // fill:forwards effect (scale:'1') overrides the inline bands.style.scale='4'
+    // set in Phase 3 of the NEXT cycle, causing all 12 bands to appear at scale(1).
+    // The 'finish' handler commits the final state as an inline style instead.
+    const zoomAnim = bands.animate(
+      [{ scale: '4' }, { scale: '1' }],
+      { duration: 900, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'none' }
+    );
+    zoomAnim.addEventListener('cancel', () => console.warn('[attract] container zoom-out animation cancelled'));
+    zoomAnim.addEventListener('finish', () => {
+      console.log('[attract] container zoom-out animation finished – committing scale:1');
+      // Commit final value as inline style so the WAAPI can safely go idle.
+      bands.style.scale = '1';
+    });
+
+    bands.classList.remove('attract-phase-1', 'attract-phase-2', 'attract-growing', 'attract-scrolling');
+    bands.classList.add('attract-phase4');
+    console.log(`[attract] showAttractPhase4: done, bands.className="${bands.className}"`);
   }
 
   /** Start the multi-step attract cycle. */
   startAttractCycle() {
+    this._cycleId = ((this._cycleId ?? 0) + 1);
+    console.log(`[attract] Cycle ${this._cycleId} start`);
     this.stopAttractCycle();
     this.resetAttractPhase();
     this.setDemoLeaderboardVisible(false);
 
+    const cycleId = this._cycleId;
     const at = (delay, fn) => {
       const t = setTimeout(fn, delay);
       this.attractTimers.push(t);
@@ -608,31 +651,37 @@ class UIController {
 
     // Phase 1 – magenta slides up
     at(this.attractReveal1Ms, () => {
+      console.log(`[attract] Cycle ${cycleId} – Phase 1`);
       if (bands) bands.classList.add('attract-phase-1');
     });
 
     // Phase 2 – lime slides up
     at(this.attractReveal2Ms, () => {
+      console.log(`[attract] Cycle ${cycleId} – Phase 2`);
       if (bands) bands.classList.add('attract-phase-2');
     });
 
     // Phase 3 – text grows AND scrolls simultaneously
     at(this.attractGrowMs, () => {
+      console.log(`[attract] Cycle ${cycleId} – Phase 3 (startAttractScroll)`);
       this.startAttractScroll();
     });
 
     // Phase 4 – zoom-out: bands compress to 1/12 height, extra rows rise into view
     at(this.attractGridMs, () => {
+      console.log(`[attract] Cycle ${cycleId} – Phase 4 (showAttractPhase4)`);
       this.showAttractPhase4();
     });
 
     // Leaderboard slides up over grid
     at(this.attractLbShowMs, () => {
+      console.log(`[attract] Cycle ${cycleId} – Leaderboard show`);
       this.setDemoLeaderboardVisible(true);
     });
 
     // Leaderboard hides → restart cycle
     at(this.attractLbHideMs, () => {
+      console.log(`[attract] Cycle ${cycleId} – Leaderboard hide, restarting`);
       this.setDemoLeaderboardVisible(false);
       this.startAttractCycle();
     });
@@ -643,6 +692,62 @@ class UIController {
     this.attractTimers = [];
     this.setDemoLeaderboardVisible(false);
     this.resetAttractPhase();
+  }
+
+  /**
+   * DEBUG: Skip directly to a specific attract phase for testing.
+   * Usage: ui.debugSkipToPhase('phase1') or ui.debugSkipToPhase('leaderboard')
+   * Phases: 'phase1', 'phase2', 'phase3', 'phase4', 'leaderboard'
+   */
+  debugSkipToPhase(phaseName) {
+    console.log(`[debug] Skipping to ${phaseName}`);
+    this.stopAttractCycle();
+    const bands = document.getElementById('attract-bands');
+    if (!bands) return;
+
+    switch (phaseName) {
+      case 'phase1':
+        bands.classList.add('attract-phase-1');
+        break;
+
+      case 'phase2':
+        bands.classList.add('attract-phase-1', 'attract-phase-2');
+        break;
+
+      case 'phase3':
+        // Phase 3: 3 large bands, scrolling, container at scale(4)
+        bands.classList.add('attract-phase-1', 'attract-phase-2', 'attract-growing');
+        bands.style.scale = '4';
+        // Schedule track building in next moment to let layout settle
+        setTimeout(() => {
+          this.startAttractScroll();
+        }, 50);
+        break;
+
+      case 'phase4':
+        // Phase 4: 12-band grid, container zoom-out animation
+        bands.classList.add('attract-phase-1', 'attract-phase-2', 'attract-growing');
+        bands.style.scale = '4';
+        // Build tracks first
+        setTimeout(() => {
+          this.startAttractScroll();
+          // Then trigger Phase 4 after Phase 3 would normally end (0.9s grow + margin)
+          setTimeout(() => {
+            this.showAttractPhase4();
+          }, 1100);
+        }, 50);
+        break;
+
+      case 'leaderboard':
+        // Leaderboard: grid visible + leaderboard panel up
+        bands.classList.add('attract-phase-1', 'attract-phase-2', 'attract-phase4');
+        bands.style.scale = '1';
+        this.setDemoLeaderboardVisible(true);
+        break;
+
+      default:
+        console.warn(`[debug] Unknown phase: ${phaseName}. Valid: phase1, phase2, phase3, phase4, leaderboard`);
+    }
   }
 
   initializeButtonGrid() {
@@ -775,7 +880,7 @@ class UIController {
         row.className = 'leaderboard-entry player-highlight';
         row.innerHTML = `
           <span>${playerSummary.placement ? '#' + playerSummary.placement.rank : '-'}</span>
-          <span>${this.toDisplayName(playerSummary.playerData.name || 'YOU')}</span>
+          <span class="leaderboard-name">${this.toDisplayName(playerSummary.playerData.name || 'YOU')}</span>
           <span class="leaderboard-score">${playerSummary.playerData.totalScore || 0}${includePtsSuffix ? 'PTS' : ''}</span>
         `;
         listEl.appendChild(row);
@@ -814,7 +919,7 @@ class UIController {
         playerRow.className = 'leaderboard-entry player-highlight';
         playerRow.innerHTML = `
           <span>${playerSummary.placement ? '#' + playerSummary.placement.rank : '-'}</span>
-          <span>${this.toDisplayName(playerSummary.playerData.name || 'YOU')}</span>
+          <span class="leaderboard-name">${this.toDisplayName(playerSummary.playerData.name || 'YOU')}</span>
           <span class="leaderboard-score">${playerSummary.playerData.totalScore || 0}${includePtsSuffix ? 'PTS' : ''}</span>
         `;
         rowEls.push(playerRow);
@@ -828,7 +933,7 @@ class UIController {
       row.className = 'leaderboard-entry' + (isPlayerEntry ? ' player-highlight' : '');
       row.innerHTML = `
         <span>${entry.rank || '-'}</span>
-        <span>${this.toDisplayName(entry.name)}</span>
+        <span class="leaderboard-name">${this.toDisplayName(entry.name)}</span>
         <span class="leaderboard-score">${entry.score || 0}${includePtsSuffix ? 'PTS' : ''}</span>
       `;
       rowEls.push(row);
@@ -839,7 +944,7 @@ class UIController {
       playerRow.className = 'leaderboard-entry player-highlight';
       playerRow.innerHTML = `
         <span>${playerSummary.placement ? '#' + playerSummary.placement.rank : '-'}</span>
-        <span>${this.toDisplayName(playerSummary.playerData.name || 'YOU')}</span>
+        <span class="leaderboard-name">${this.toDisplayName(playerSummary.playerData.name || 'YOU')}</span>
         <span class="leaderboard-score">${playerSummary.playerData.totalScore || 0}${includePtsSuffix ? 'PTS' : ''}</span>
       `;
       rowEls.push(playerRow);
@@ -861,7 +966,32 @@ class UIController {
     }
 
     rowEls.forEach(r => listEl.appendChild(r));
+
+    if (listEl.id === 'demo-leaderboard-list') {
+      requestAnimationFrame(() => this.shrinkLeaderboardNamesToFit(listEl));
+    }
+
     this.updateBackTopButtonVisibility();
+  }
+
+  /** Shrink name font size when it overflows to keep each row on one line. */
+  shrinkLeaderboardNamesToFit(listEl) {
+    const rows = listEl.querySelectorAll('.leaderboard-entry:not(.leaderboard-message)');
+    rows.forEach((row) => {
+      const nameEl = row.querySelector('.leaderboard-name');
+      if (!nameEl) return;
+
+      const computed = getComputedStyle(nameEl);
+      let fontSize = parseFloat(computed.fontSize);
+      const minFontSize = 24;
+      const step = 4;
+
+      nameEl.style.fontSize = fontSize + 'px';
+      while (nameEl.scrollWidth > nameEl.clientWidth && fontSize > minFontSize) {
+        fontSize = Math.max(minFontSize, fontSize - step);
+        nameEl.style.fontSize = fontSize + 'px';
+      }
+    });
   }
 
   showLeaderboard(leaderboard, playerName = 'Unknown', playerSummary = null) {

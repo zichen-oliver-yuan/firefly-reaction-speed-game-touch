@@ -72,6 +72,7 @@ body {
   position: relative;
   width: 100vw;
   height: 100vh;
+  overflow: hidden; /* prevent scaled attract container from extending document scroll area */
 }
 
 .screen {
@@ -348,7 +349,7 @@ body {
 }
 
 .leaderboard-list-demo {
-  margin-top: 12px;
+  margin-top: 0px;
 }
 
 .leaderboard-entry {
@@ -833,7 +834,7 @@ body {
 
 .isc-panel-value {
   font-family: var(--font-schrifted);
-  font-weight: 900;
+  font-weight: 400;
   /* Scale with the narrower of vw and panel height (panel = 15.625vh) */
   font-size: clamp(2.5rem, min(17vw, 11vh), 14rem);
   color: #000;
@@ -842,6 +843,8 @@ body {
   display: inline-grid;
   grid-auto-flow: row;
   overflow: hidden;
+  align-self: flex-end;
+  text-align: right;
 }
 
 /* Grid container — full width, fills remaining screen height */
@@ -952,6 +955,8 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* transform-origin for container scale(4→1) Phase 4 zoom-out */
+  transform-origin: top left;
 }
 
 .attract-band {
@@ -979,7 +984,23 @@ body {
 .attract-bands.attract-phase-2 .attract-band-magenta:not(.attract-band-extra) { flex-grow: 1;    }
 .attract-bands.attract-phase-2 .attract-band-lime:not(.attract-band-extra)    { flex-grow: 1.05; }
 
-/* ── Single text item per band (starts small, grows in Phase 3) ── */
+/* ── Scaler wrapper: handles Phase 2→3 grow and Phase 3→4 shrink.
+   All scale animation is driven by the Web Animations API (WAAPI) in JS —
+   no CSS transition here so there are no batching or background-tab issues.
+   justify-content: flex-start is critical: centering the wide track inside the
+   narrow scaler creates a large negative offset that causes blank space on the
+   right when the marquee scrolls near -50% (amplified at phase4Scale 0.25). ── */
+.attract-track-scaler {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  height: 100%;
+  transform-origin: left center;
+  scale: 1;
+}
+
+/* ── Text track inside scaler: handles marquee scrolling via transform ── */
 .attract-track {
   display: flex;
   align-items: center;
@@ -991,7 +1012,7 @@ body {
 .attract-item {
   font-family: var(--font-schrifted);
   font-weight: 400;
-  font-size: clamp(2rem, 7.5vh, 9rem);   /* small in phases 0-2 */
+  font-size: clamp(2rem, 7.5vh, 9rem);   /* small in phases 0-2; overridden inline by JS in Phase 3+ */
   color: #000;
   letter-spacing: -0.05em;
   line-height: 1;
@@ -999,54 +1020,51 @@ body {
   text-transform: uppercase;
   white-space: nowrap;
   flex-shrink: 0;
-  transition: font-size 0.9s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Extra bands (rows 4–12): invisible until Phase 4 */
+/* Extra bands (rows 4–12): zero-height in Phases 0–2; flex-grow:1 in Phase 3
+   (off-screen, clipped by parent) so they are ready when revealed in Phase 4. */
 .attract-band-extra {
   flex-grow: 0;
+  /* No flex-grow transition: the Phase 3→4 zoom-out is handled by animating the
+     container's scale (WAAPI on .attract-bands), not by changing individual flex-grows. */
 }
 
-/* Phase 3a — text grows in place (original 3 bands only) */
-.attract-bands.attract-growing .attract-band:not(.attract-band-extra) .attract-item {
-  font-size: clamp(8rem, 36.5vh, 48rem);
+/* Phase 3: all 12 bands equal height in DOM (flex-grow:1 each = totalH/12).
+   JS applies scale(4) to the .attract-bands container via WAAPI so the top 3 bands
+   visually fill the screen. Bands 4–12 are off-screen (visual y > viewport height)
+   but fully rendered so they are ready when the container scales back to 1. */
+.attract-bands.attract-growing .attract-band {
+  flex-grow: 1;
 }
 
-/* Phase 3b — scrolling: track overflows, items stay large with no transition (original 3 bands only) */
+/* Phase 3: font-size is set inline by JS at the Phase-4 DOM value (totalH/12×0.9).
+   Container scale(4) makes it appear as (totalH/3×0.9) = Phase 3 large size.
+   Phase 4 zoom-out: WAAPI on container scale(4→1) — compositor-only, zero layout cost. */
+
+/* Phase 3b — scrolling: track overflows */
 .attract-bands.attract-scrolling .attract-track {
   justify-content: flex-start;
   width: max-content;
 }
-.attract-bands.attract-scrolling .attract-band:not(.attract-band-extra) .attract-item {
-  font-size: clamp(8rem, 36.5vh, 48rem);
+.attract-bands.attract-scrolling .attract-item {
   transition: none;
 }
 
-/* Phase 4: all 12 bands compress to equal 1/12 height via flex-grow transition */
+/* Phase 4: container WAAPI scale(4→1) has completed (fill:forwards keeps it at 1).
+   All 12 bands remain at flex-grow:1 (unchanged from Phase 3). No layout recalc needed. */
 .attract-bands.attract-phase4 .attract-band {
   flex-grow: 1;
 }
-.attract-bands.attract-phase4 .attract-item {
-  font-size: clamp(2rem, 7.5vh, 9rem);
-  transition: none;
-}
 
+/* Marquee keyframes: `transform: translateX()` on the track composes correctly
+   because `scale` lives on the outer .attract-track-scaler wrapper. */
 @keyframes attractScrollLTR {
   from { transform: translateX(0); }
   to   { transform: translateX(-50%); }
 }
 @keyframes attractScrollRTL {
   from { transform: translateX(-50%); }
-  to   { transform: translateX(0); }
-}
-
-/* Pixel-exact variants (Phase 4): use --marquee-dist set inline to avoid sub-pixel seam gaps */
-@keyframes attractScrollLTR-px {
-  from { transform: translateX(0); }
-  to   { transform: translateX(var(--marquee-dist)); }
-}
-@keyframes attractScrollRTL-px {
-  from { transform: translateX(var(--marquee-dist)); }
   to   { transform: translateX(0); }
 }
 
@@ -1072,12 +1090,12 @@ body {
   background: #dfff96;
   color: #000;
   font-family: var(--font-schrifted);
-  font-weight: 900;
+  font-weight: 400;
   font-size: clamp(3.6rem, 9.6vw, 10.4rem);
   letter-spacing: -0.03em;
   line-height: 1;
   text-align: center;
-  padding: clamp(24px, 4vh, 56px) clamp(16px, 3vw, 32px);
+  padding: clamp(12px, 2vh, 28px) clamp(12px, 2vw, 20px);
   flex-shrink: 0;
 }
 
@@ -1090,9 +1108,11 @@ body {
   margin: 0 auto;
   width: min(520px, 80vw);
   z-index: 10;
-  background: #fff;
+  background: rgba(255, 255, 255, 0.666);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   color: #000;
-  border: none;
+  border: 2px solid rgba(255, 255, 255, 0.4);
   font-family: var(--font-mono);
   font-size: clamp(1.4rem, 3vw, 2.4rem);
   letter-spacing: 0.1em;
@@ -1157,11 +1177,11 @@ body {
   background: #03eabb;
   color: #000;
   font-family: var(--font-schrifted);
-  font-weight: 900;
+  font-weight: 400;
   font-size: clamp(3.6rem, 9.6vw, 10.4rem);
   letter-spacing: -0.03em;
   text-align: center;
-  padding: clamp(18px, 2.8vh, 44px) 0;
+  padding: clamp(12px, 2vh, 28px) clamp(12px, 2vw, 20px);
   flex-shrink: 0;
   line-height: 1;
 }
@@ -1203,6 +1223,39 @@ body {
 
 .leaderboard-list-dark .leaderboard-entry.near-player {
   color: rgba(255, 255, 255, 0.7);
+}
+
+/* Attract/demo leaderboard — names & points (~120px@1920), place (~70px), place sits higher */
+.leaderboard-list-demo.leaderboard-list-dark .leaderboard-entry:not(.leaderboard-message) {
+  align-items: baseline;
+  color: #fff;
+  font-family: var(--font-schrifted);
+  font-style: normal;
+  font-weight: 400;
+  font-size: clamp(3.5rem, 6.25vh, 7.5rem);
+  line-height: normal;
+  letter-spacing: -6px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.leaderboard-list-demo.leaderboard-list-dark .leaderboard-entry:not(.leaderboard-message) > span:first-child {
+  font-size: clamp(2rem, 3.65vh, 4.4rem);
+  letter-spacing: -4.2px;
+}
+
+.leaderboard-list-demo.leaderboard-list-dark .leaderboard-entry:not(.leaderboard-message) .leaderboard-name {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.leaderboard-list-demo.leaderboard-list-dark .leaderboard-entry:not(.leaderboard-message) .leaderboard-score {
+  font-size: clamp(3.5rem, 6.25vh, 7.5rem);
+  letter-spacing: -7.2px;
+}
+
+.leaderboard-list-demo.leaderboard-list-dark .leaderboard-entry:not(.leaderboard-message).player-highlight {
+  color: #000;
 }
 
 /* HOME button — floats above leaderboard list */
