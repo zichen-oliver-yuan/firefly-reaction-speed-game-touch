@@ -962,6 +962,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  container-type: size;
   transition: flex-grow 0.9s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -1002,14 +1003,28 @@ body {
   transition: font-size 0.9s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Extra bands (rows 4–12): invisible until Phase 4 */
+/* Extra bands (rows 4–12): hidden in Phases 0–2, invisible slivers in Phase 3 */
 .attract-band-extra {
   flex-grow: 0;
+  /* Include opacity in transition so extras fade in smoothly during Phase 4 */
+  transition: flex-grow 0.9s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.5s ease 0.1s;
 }
 
-/* Phase 3a — text grows in place (original 3 bands only) */
+/* Phase 3: original bands fill screen, extras are invisible slivers below the fold.
+   When Phase 4 fires, original bands transition from 1000→1 (shrink) while
+   extras stay at 1 (grow into freed space) — creating a smooth zoom-out. */
+.attract-bands.attract-growing .attract-band:not(.attract-band-extra) {
+  flex-grow: 1000;
+}
+.attract-bands.attract-growing .attract-band-extra {
+  flex-grow: 1;
+  opacity: 0;   /* hide the sub-pixel sliver during Phase 3 */
+}
+
+/* Phase 3a — text grows to fill band height (original 3 bands only; extras stay small).
+   90cqh = 90% of container (band) height → font tracks band size in real-time. */
 .attract-bands.attract-growing .attract-band:not(.attract-band-extra) .attract-item {
-  font-size: clamp(8rem, 36.5vh, 48rem);
+  font-size: 90cqh;
 }
 
 /* Phase 3b — scrolling: track overflows, items stay large with no transition (original 3 bands only) */
@@ -1018,16 +1033,18 @@ body {
   width: max-content;
 }
 .attract-bands.attract-scrolling .attract-band:not(.attract-band-extra) .attract-item {
-  font-size: clamp(8rem, 36.5vh, 48rem);
+  font-size: 90cqh;
   transition: none;
 }
 
-/* Phase 4: all 12 bands compress to equal 1/12 height via flex-grow transition */
+/* Phase 4: all 12 bands compress to equal 1/12 height.
+   Font-size uses 90cqh so it tracks band height on every frame during flex-grow transition.
+   No CSS font-size transition needed — cqh recalculates live as the container shrinks. */
 .attract-bands.attract-phase4 .attract-band {
   flex-grow: 1;
 }
 .attract-bands.attract-phase4 .attract-item {
-  font-size: clamp(2rem, 7.5vh, 9rem);
+  font-size: 90cqh;
   transition: none;
 }
 
