@@ -19,6 +19,14 @@ class UIController {
     this.leaderboardAutoScrollDirectionByList = {};
     this.lastTimeValue = null;
     this.lastScoreValue = null;
+    this.figmaCountdownFrames = [
+      { nodeId: '1695:1958', backgroundHex: '#FC36FE', text: '2' },
+      { nodeId: '1695:1961', backgroundHex: '#DFFF96', text: '1' },
+      { nodeId: '1695:1955', backgroundHex: '#03EABB', text: '3' },
+      { nodeId: '1695:1944', backgroundHex: '#03EABB', text: '3' },
+      { nodeId: '1695:1947', backgroundHex: '#FC36FE', text: '2' },
+      { nodeId: '1695:1906', backgroundHex: '#03EABB', text: '3' }
+    ];
 
     // Attract cycle timers (multi-step: reveal → grow → scroll → grid → lb → repeat)
     this.attractTimers    = [];
@@ -27,15 +35,16 @@ class UIController {
     // ── Phase timing (ms from cycle start) ──
     this.attractReveal1Ms = 1500;   // Phase 1: magenta slides up
     this.attractReveal2Ms = 2500;   // Phase 2: lime slides up
-    this.attractGrowMs    = 3800;   // Phase 3: text grows + scrolls simultaneously
-    this.attractGridMs    = 9500;   // Phase 4: zoom-out (all 12 bands)
-    this.attractLbShowMs  = 14000;  // Leaderboard slides up
+    // Moved Phase 3 to 3500ms (was 3800ms) to complete DOM rebuild before visible transition
+    this.attractGrowMs    = 3500;   // Phase 3: text grows + scrolls simultaneously
+    this.attractGridMs    = 9200;   // Phase 4: zoom-out (all 12 bands) — adjusted for earlier Phase 3
+    this.attractLbShowMs  = 13700;  // Leaderboard slides up — adjusted timing
     this.attractLbHideMs  = 24000;  // Leaderboard hides → restart cycle
 
     // ── Marquee speed multiplier (applies to BOTH Phase 3 and Phase 4) ──
     // Multiplies each band's "speed" value to control scroll velocity.
-    // Higher = slower scroll.  1 = fastest.  3 = 3× slower.
-    this.phase4SpeedScale = 3;
+    // Higher = slower scroll. Reduced from 3→2 for TV performance.
+    this.phase4SpeedScale = 2;
 
     // ── Marquee speed per band ──
     // "speed" = base animation duration in seconds for one full loop.
@@ -302,7 +311,18 @@ class UIController {
       this.leaderboardAutoScrollInterval = null;
     }
 
+    // Skip auto-scroll during attract cycle to reduce animation overhead on TV
+    if (this.attractTimers.length > 0) {
+      return;
+    }
+
     this.leaderboardAutoScrollInterval = setInterval(() => {
+      // Skip if attract cycle is running
+      if (this.attractTimers.length > 0) {
+        clearInterval(this.leaderboardAutoScrollInterval);
+        this.leaderboardAutoScrollInterval = null;
+        return;
+      }
       const list = this.getActiveLeaderboardList();
       if (!list) return;
       if (list.scrollHeight <= list.clientHeight + 2) return;
@@ -960,16 +980,25 @@ class UIController {
     if (!display || !numEl) return;
 
     const val = Math.max(0, seconds);
+    const configuredSeconds = Number(
+      CONFIG && CONFIG.game && CONFIG.game.preGameCountdownSeconds
+    ) || this.figmaCountdownFrames.length;
+    const totalSteps = Math.max(configuredSeconds, this.figmaCountdownFrames.length);
+    const frameIndex = Math.max(0, Math.min(this.figmaCountdownFrames.length - 1, totalSteps - val));
+    const frame = this.figmaCountdownFrames[frameIndex];
 
-    // Swap background colour class
-    const colourMap = { 3: 'cd-teal', 2: 'cd-magenta', 1: 'cd-lime' };
-    display.classList.remove('cd-teal', 'cd-magenta', 'cd-lime');
-    display.classList.add(colourMap[val] || 'cd-teal');
+    display.style.backgroundColor = frame ? frame.backgroundHex : '#03EABB';
+    display.dataset.nodeId = frame ? frame.nodeId : '';
 
     // Re-trigger pop-in animation by replacing the element clone
     const clone = numEl.cloneNode(true);
-    clone.textContent = val > 0 ? String(val) : '';
+    clone.textContent = frame ? frame.text : (val > 0 ? String(val) : '');
+    clone.dataset.nodeId = frame ? frame.nodeId : '';
     numEl.replaceWith(clone);
+  }
+
+  getPreGameCountdownStepCount() {
+    return this.figmaCountdownFrames.length;
   }
 
   showGameEnd(totalScore, avgReaction, bestReaction) {

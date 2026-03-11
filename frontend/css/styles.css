@@ -161,8 +161,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: var(--led-banner-gap);
-  will-change: transform;
-  transform: translate3d(0, 0, 0);
+  /* Removed will-change and translate3d for TV memory efficiency */
 }
 
 .led-subtitle.is-marquee .led-marquee-track {
@@ -962,8 +961,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  container-type: size;
-  transition: flex-grow 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+  /* Removed container-type: size for TV performance (use JS sizing instead) */
+  transition: flex-grow 0.9s ease;
 }
 
 /* Phase 0 (default) */
@@ -1006,8 +1005,9 @@ body {
 /* Extra bands (rows 4–12): hidden in Phases 0–2, invisible slivers in Phase 3 */
 .attract-band-extra {
   flex-grow: 0;
-  /* Include opacity in transition so extras fade in smoothly during Phase 4 */
-  transition: flex-grow 0.9s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.5s ease 0.1s;
+  /* Stagger opacity fade-in to reduce concurrent animation overhead */
+  transition: flex-grow 0.9s ease;
+  opacity: 0;
 }
 
 /* Phase 3: original bands fill screen, extras are invisible slivers below the fold.
@@ -1022,9 +1022,10 @@ body {
 }
 
 /* Phase 3a — text grows to fill band height (original 3 bands only; extras stay small).
-   90cqh = 90% of container (band) height → font tracks band size in real-time. */
+   Using clamp + vh units instead of container query units for TV performance. */
 .attract-bands.attract-growing .attract-band:not(.attract-band-extra) .attract-item {
-  font-size: 90cqh;
+  font-size: clamp(3rem, 28vh, 20rem);
+  transition: font-size 0.9s ease;
 }
 
 /* Phase 3b — scrolling: track overflows, items stay large with no transition (original 3 bands only) */
@@ -1033,18 +1034,21 @@ body {
   width: max-content;
 }
 .attract-bands.attract-scrolling .attract-band:not(.attract-band-extra) .attract-item {
-  font-size: 90cqh;
+  font-size: clamp(3rem, 28vh, 20rem);
   transition: none;
 }
 
 /* Phase 4: all 12 bands compress to equal 1/12 height.
-   Font-size uses 90cqh so it tracks band height on every frame during flex-grow transition.
-   No CSS font-size transition needed — cqh recalculates live as the container shrinks. */
+   Extra bands fade in after Phase 4 starts to reduce concurrent animation load. */
 .attract-bands.attract-phase4 .attract-band {
   flex-grow: 1;
 }
+.attract-bands.attract-phase4 .attract-band-extra {
+  opacity: 1;
+  transition: flex-grow 0.9s ease, opacity 0.4s ease 0.25s;
+}
 .attract-bands.attract-phase4 .attract-item {
-  font-size: 90cqh;
+  font-size: clamp(1rem, 8vh, 3rem);
   transition: none;
 }
 
@@ -1129,29 +1133,29 @@ body {
   background: #03eabb; /* default; overridden by JS class */
 }
 
-/* Single full-screen panel — background swaps via JS classes */
+/* Single full-screen panel — background swaps via JS frame data */
 .countdown-display {
   width: 100%;
   height: 100%;
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  /* smooth colour switch between numbers */
+  /* Figma frame swaps are instant and bold. */
   transition: background-color 0.15s ease;
 }
 
-.countdown-display.cd-teal    { background: #03eabb; }
-.countdown-display.cd-magenta { background: #fc36fe; }
-.countdown-display.cd-lime    { background: #dfff96; }
-
 .countdown-number {
+  position: absolute;
+  left: 50%;
+  top: min(246px, 12.8125vh);
+  transform: translateX(-50%);
   font-family: var(--font-schrifted);
-  font-weight: 900;
-  /* number fills ~60% of viewport width; portrait screen so vw is the narrow axis */
-  font-size: clamp(40rem, 60vw, 75rem);
+  font-weight: 400;
+  font-size: min(1200px, 111.1111vw);
   color: #000;
-  line-height: 0.85;
-  letter-spacing: -0.05em;
+  line-height: 1;
+  letter-spacing: -60px;
   /* pop-in animation on each new number */
   animation: cdPop 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
