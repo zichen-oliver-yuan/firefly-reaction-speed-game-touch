@@ -34,8 +34,8 @@ class UIController {
 
     // ── Marquee speed multiplier (applies to BOTH Phase 3 and Phase 4) ──
     // Multiplies each band's "speed" value to control scroll velocity.
-    // Higher = slower scroll.  1 = fastest.  3 = 3× slower.
-    this.phase4SpeedScale = 3;
+    // Higher = slower scroll. Reduced from 3→2 for TV performance.
+    this.phase4SpeedScale = 2;
 
     // ── Marquee speed per band ──
     // "speed" = base animation duration in seconds for one full loop.
@@ -302,7 +302,18 @@ class UIController {
       this.leaderboardAutoScrollInterval = null;
     }
 
+    // Skip auto-scroll during attract cycle to reduce animation overhead on TV
+    if (this.attractTimers.length > 0) {
+      return;
+    }
+
     this.leaderboardAutoScrollInterval = setInterval(() => {
+      // Skip if attract cycle is running
+      if (this.attractTimers.length > 0) {
+        clearInterval(this.leaderboardAutoScrollInterval);
+        this.leaderboardAutoScrollInterval = null;
+        return;
+      }
       const list = this.getActiveLeaderboardList();
       if (!list) return;
       if (list.scrollHeight <= list.clientHeight + 2) return;

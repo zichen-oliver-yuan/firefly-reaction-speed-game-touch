@@ -882,7 +882,7 @@ body {
   transform: scale(0);
   transition: transform 0ms; /* instant snap back between spawns */
   box-shadow: none;
-  will-change: transform;
+  /* Removed will-change: transform for TV memory efficiency */
 }
 
 /* Growing state: cells animate from scale(0) → scale(1) */
@@ -998,6 +998,7 @@ body {
   height: 100%;
   transform-origin: left center;
   scale: 1;
+  /* Removed will-change for TV memory efficiency (WAAPI is compositor-friendly) */
 }
 
 /* ── Text track inside scaler: handles marquee scrolling via transform ── */
@@ -1006,7 +1007,7 @@ body {
   align-items: center;
   justify-content: center;   /* centres the single seed item */
   width: 100%;
-  will-change: transform;
+  /* Removed will-change: transform for TV memory efficiency */
 }
 
 .attract-item {
