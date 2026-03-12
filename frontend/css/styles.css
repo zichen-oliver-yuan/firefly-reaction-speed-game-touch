@@ -948,13 +948,14 @@ body {
   background: #000;
 }
 
-/* ── Prerendered attract animation video ── */
+/* ── Prerendered attract animation video (portrait 1080x1920) ── */
 .attract-video {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;  /* Preserve full portrait video with letterboxing on TV */
+  background: #000;  /* Black letterbox bars */
   z-index: 1;
 }
 

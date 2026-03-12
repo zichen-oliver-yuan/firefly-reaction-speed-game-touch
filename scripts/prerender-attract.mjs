@@ -3,8 +3,9 @@
 /**
  * Prerender Phase 1-4 of attract animation to MP4 video.
  *
- * Captures frames at 30 FPS for 9.5 seconds (285 frames total),
- * encodes to H.264 MP4, places output at frontend/assets/attract-loop.mp4
+ * Captures frames at 60 FPS for 10.4 seconds (Phase 1-4 with full Phase 4 zoom completion).
+ * Records at 4K (3840x2160) for quality, plays back at 1080x1920 (portrait).
+ * Encodes to H.264 MP4, places output at frontend/assets/attract-loop.mp4
  */
 
 import { chromium } from 'playwright';
@@ -20,14 +21,23 @@ const assetsDir = path.join(frontendDir, 'assets');
 const outputPath = path.join(assetsDir, 'attract-loop.mp4');
 const framesDir = path.join(projectRoot, '.frames-temp');
 
-const FPS = 30;
-const DURATION_MS = 9500;  // Phase 1-4 duration
+// Recording at 4K for quality (portrait orientation: 2160x3840)
+const RECORD_WIDTH = 2160;
+const RECORD_HEIGHT = 3840;
+// Playback resolution (portrait: 1080x1920)
+const PLAYBACK_WIDTH = 1080;
+const PLAYBACK_HEIGHT = 1920;
+
+const FPS = 60;
+const DURATION_MS = 10400;  // Phase 1 (1500) + Phase 2 (1000) + Phase 3 (5700) + Phase 4 zoom (900)
 const FRAME_COUNT = Math.ceil((DURATION_MS / 1000) * FPS);
 const PORT = 9000;
 const URL = `http://localhost:${PORT}`;
 
 console.log(`🎬 Attract Animation Prerender`);
-console.log(`📊 ${FPS} FPS, ${DURATION_MS}ms duration, ${FRAME_COUNT} frames`);
+console.log(`📊 Recording: ${FPS} FPS, ${DURATION_MS}ms duration, ${FRAME_COUNT} frames`);
+console.log(`📐 Record res: ${RECORD_WIDTH}x${RECORD_HEIGHT} (4K portrait)`);
+console.log(`📐 Playback res: ${PLAYBACK_WIDTH}x${PLAYBACK_HEIGHT} (1080p portrait)`);
 
 // Clean up and create frames directory
 if (fs.existsSync(framesDir)) {
@@ -45,8 +55,19 @@ async function captureFrames() {
 
   browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({
-    viewport: { width: 1920, height: 1080 },
+    viewport: { width: RECORD_WIDTH, height: RECORD_HEIGHT },
     colorScheme: 'dark',
+  });
+
+  // Inject CSS to hide PLAY button and scale appropriately
+  await page.addInitScript(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      #demo-start-btn { display: none !important; }
+      body { margin: 0; padding: 0; }
+      #game-container { width: 100vw; height: 100vh; }
+    `;
+    document.head.appendChild(style);
   });
 
   // Navigate to demo page
@@ -54,11 +75,6 @@ async function captureFrames() {
   await page.waitForSelector('#attract-bands', { timeout: 5000 });
 
   console.log(`✅ Page loaded\n`);
-
-  // Inject test mode to skip demo timer refresh
-  await page.addInitScript(() => {
-    window.PRERENDER_MODE = true;
-  });
 
   // Wait for demo to fully load
   await page.waitForTimeout(500);
@@ -71,7 +87,7 @@ async function captureFrames() {
     }
   });
 
-  // Capture frames at 30 FPS
+  // Capture frames at 60 FPS
   const frameDuration = 1000 / FPS;
 
   for (let i = 0; i < FRAME_COUNT; i++) {
@@ -85,8 +101,8 @@ async function captureFrames() {
     // Capture screenshot
     await page.screenshot({ path: framePath, omitBackground: false });
 
-    // Progress indicator every 10 frames
-    if ((i + 1) % 10 === 0) {
+    // Progress indicator every 30 frames (~0.5s at 60fps)
+    if ((i + 1) % 30 === 0) {
       const percent = ((i + 1) / FRAME_COUNT * 100).toFixed(1);
       const timeAtMs = (i * frameDuration).toFixed(0);
       process.stdout.write(`\r  [${percent}%] Frame ${i + 1}/${FRAME_COUNT} @ ${timeAtMs}ms`);
@@ -100,16 +116,22 @@ async function captureFrames() {
 
 async function encodeToMP4() {
   console.log(`🎥 Encoding frames to H.264 MP4...`);
+  console.log(`   Scaling from 4K (${RECORD_WIDTH}x${RECORD_HEIGHT}) to 1080p portrait (${PLAYBACK_WIDTH}x${PLAYBACK_HEIGHT})`);
 
   const inputPattern = path.join(framesDir, 'frame-%06d.png');
+  // Scale filter: convert 4K portrait to 1080p portrait
+  const scaleFilter = `scale=${PLAYBACK_WIDTH}:${PLAYBACK_HEIGHT}`;
+
   const ffmpegCmd = [
     'ffmpeg',
     '-framerate', String(FPS),
     '-i', `"${inputPattern}"`,
+    '-vf', scaleFilter,
     '-c:v', 'libx264',
     '-preset', 'slow',
-    '-crf', '23',
+    '-crf', '18',  // Higher quality for scaling
     '-pix_fmt', 'yuv420p',
+    '-movflags', '+faststart',  // Enable fast start for streaming
     '-y',  // overwrite output file
     `"${outputPath}"`
   ].join(' ');
@@ -119,7 +141,9 @@ async function encodeToMP4() {
     console.log(`\n✅ Video encoded: ${outputPath}`);
 
     const fileSize = (fs.statSync(outputPath).size / 1024 / 1024).toFixed(2);
+    const duration = (DURATION_MS / 1000).toFixed(1);
     console.log(`📦 File size: ${fileSize} MB`);
+    console.log(`⏱️  Duration: ${duration}s at ${FPS} FPS`);
   } catch (err) {
     console.error(`❌ ffmpeg encoding failed:`, err.message);
     throw err;
