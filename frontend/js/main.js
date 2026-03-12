@@ -14,37 +14,66 @@ function setupTouchKeyboard() {
   const keyboardContainer = document.getElementById('touch-keyboard');
   const firstNameInput = document.getElementById('lead-first-name-input');
   const lastNameInput = document.getElementById('lead-last-name-input');
-  const emailInput = document.getElementById('lead-email-input');
 
-  if (!keyboardContainer || !firstNameInput || !lastNameInput || !emailInput) return;
+  if (!keyboardContainer || !firstNameInput || !lastNameInput) return;
 
   window.touchKeyboard = new TouchKeyboard(firstNameInput);
   window.touchKeyboard.init(keyboardContainer);
 
+  // Maps each input to its band and display span
+  const fields = [
+    { input: firstNameInput, bandId: 'lead-band-firstname', displayId: 'lead-firstname-display' },
+    { input: lastNameInput,  bandId: 'lead-band-lastname',  displayId: 'lead-lastname-display'  },
+  ];
+
+  const setActiveField = (targetInput) => {
+    if (window.touchKeyboard) {
+      window.touchKeyboard.input = targetInput;
+    }
+    fields.forEach(({ input, bandId }) => {
+      if (!bandId) return;
+      const band = document.getElementById(bandId);
+      if (band) band.classList.toggle('is-active', input === targetInput);
+    });
+    const end = targetInput.value.length;
+    if (typeof targetInput.setSelectionRange === 'function') {
+      targetInput.setSelectionRange(end, end);
+    }
+    targetInput.focus({ preventScroll: true });
+  };
+
+  const updateFieldDisplay = (targetInput) => {
+    const field = fields.find((f) => f.input === targetInput);
+    if (!field || !field.displayId || !field.bandId) return;
+    const displayEl = document.getElementById(field.displayId);
+    if (displayEl) displayEl.textContent = targetInput.value;
+    const band = document.getElementById(field.bandId);
+    if (band) band.classList.toggle('has-value', targetInput.value.length > 0);
+  };
+
+  // Tap on a band to activate its input
+  fields.forEach(({ input, bandId }) => {
+    if (!bandId) return;
+    const band = document.getElementById(bandId);
+    if (!band) return;
+    band.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      setActiveField(input);
+    });
+  });
+
   const bindInput = (input) => {
     input.addEventListener('pointerdown', (event) => {
       event.preventDefault();
-      if (window.touchKeyboard) {
-        window.touchKeyboard.input = input;
-      }
-      const end = input.value.length;
-      if (typeof input.setSelectionRange === 'function') {
-        input.setSelectionRange(end, end);
-      }
-      input.focus({ preventScroll: true });
+      setActiveField(input);
     });
 
     input.addEventListener('focus', () => {
-      if (window.touchKeyboard) {
-        window.touchKeyboard.input = input;
-      }
-      const end = input.value.length;
-      if (typeof input.setSelectionRange === 'function') {
-        input.setSelectionRange(end, end);
-      }
+      setActiveField(input);
     });
 
     input.addEventListener('input', () => {
+      updateFieldDisplay(input);
       if (window.game) {
         window.game.handleUserAction();
       }
@@ -56,11 +85,6 @@ function setupTouchKeyboard() {
 
   bindInput(firstNameInput);
   bindInput(lastNameInput);
-  bindInput(emailInput);
-}
-
-function isValidEmail(email) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((email || '').trim());
 }
 
 function setupEventHandlers() {
@@ -90,14 +114,7 @@ function setupEventHandlers() {
     }
   });
 
-  const scorePlayAgainBtn = document.getElementById('score-play-again-btn');
   const scoreDoneBtn = document.getElementById('score-done-btn');
-
-  bindPress(scorePlayAgainBtn, () => {
-    if (window.game) {
-      window.game.playAgain();
-    }
-  });
 
   bindPress(scoreDoneBtn, () => {
     if (window.game && window.ui) {
@@ -108,18 +125,6 @@ function setupEventHandlers() {
 
   const leadSubmitBtn = document.getElementById('lead-submit-btn');
   const leadBackBtn = document.getElementById('lead-back-btn');
-  const leadConsentInput = document.getElementById('lead-consent-input');
-
-  if (leadConsentInput) {
-    leadConsentInput.addEventListener('change', () => {
-      if (window.game) {
-        window.game.handleUserAction();
-      }
-      if (window.ui) {
-        window.ui.clearLeadFormError();
-      }
-    });
-  }
 
   bindPress(leadBackBtn, () => {
     if (window.game) {
@@ -132,8 +137,8 @@ function setupEventHandlers() {
     if (leadSubmitInFlight) return;
 
     const data = window.ui.getLeadFormData();
-    if (!data.firstName || !data.lastName || !isValidEmail(data.email)) {
-      window.ui.showLeadFormError('Please enter first name, last name, and a valid email.');
+    if (!data.firstName || !data.lastName) {
+      window.ui.showLeadFormError('Please enter your first and last name.');
       return;
     }
 
@@ -143,9 +148,9 @@ function setupEventHandlers() {
       window.game.playerName = fullName;
       window.game.playerFirstName = data.firstName.trim();
       window.game.playerLastName = data.lastName.trim();
-      window.game.playerEmail = data.email.toLowerCase();
+      window.game.playerEmail = '';
       window.game.playerCompany = '';
-      window.game.newsletterOptIn = !!data.consent;
+      window.game.newsletterOptIn = false;
 
       const playerData = window.game.buildPlayerData();
       const cachedRemoteLeaderboard = window.game.getCachedRemoteLeaderboard(1000);
