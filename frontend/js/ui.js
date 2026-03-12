@@ -96,8 +96,18 @@ class UIController {
       case 'game_end':
         break;
       case 'lead_form':
-        this.showScreen('lead-form', nav.direction);
+        this.hideAllScreens();
+        {
+          const leadScreen = document.getElementById('screen-lead-form');
+          if (leadScreen) {
+            leadScreen.classList.remove('hidden');
+            this.currentScreen = 'lead-form';
+            this.currentScreenEl = leadScreen;
+          }
+        }
         this.clearLeadFormError();
+        this.resetLeadFormBands();
+        requestAnimationFrame(() => this.animateLeadFormIn());
         break;
       case 'show_leaderboard':
         this.showScreen('leaderboard', nav.direction);
@@ -1197,23 +1207,51 @@ class UIController {
   }
 
   showGameEnd(totalScore, avgReaction, bestReaction) {
-    this.showScreen('score');
-
+    // Populate results before the screen is revealed
     const finalScoreEl = document.getElementById('final-score');
-    const bestEl = document.getElementById('best-reaction');
-    const subtitleEl = document.getElementById('score-subtitle');
-
+    const avgReactionEl = document.getElementById('avg-reaction');
     if (finalScoreEl) {
       finalScoreEl.textContent = Number(totalScore || 0).toLocaleString();
     }
-    if (bestEl) {
-      bestEl.textContent = Number(bestReaction || 0).toFixed(3);
+    if (avgReactionEl) {
+      avgReactionEl.textContent = `${Number(avgReaction || 0).toFixed(3)}sec`;
     }
-    if (subtitleEl) {
-      subtitleEl.textContent = avgReaction <= 0.3 ? 'YOU ARE SO FAST!' : 'NICE WORK!';
-      subtitleEl.dataset.baseText = subtitleEl.textContent;
-    }
-    this.refreshLedMarquee();
+
+    // Create the lime-green GAME OVER overlay (position: fixed, covers everything)
+    const overlay = document.createElement('div');
+    overlay.className = 'game-over-overlay';
+    overlay.innerHTML = '<span class="game-over-overlay-text">GAME OVER</span>';
+    document.body.appendChild(overlay);
+
+    // Phase 1: Slide in from the right (0 → 400ms)
+    overlay.style.transform = 'translateX(100%)';
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        overlay.style.transition = 'transform 0.4s ease-out';
+        overlay.style.transform = 'translateX(0)';
+      });
+    });
+
+    // Phase 2: Hold full-screen for 0.6s (400ms → 1000ms)
+
+    // Phase 3: Switch to score screen + shrink overlay height (1000ms → 1500ms)
+    // Height animates from 100% → 291px; text stays centered and rides up with it
+    setTimeout(() => {
+      this.showScreen('score');
+      overlay.style.transition = 'height 0.5s cubic-bezier(0.4, 0, 0.2, 1)';
+      overlay.style.height = '291px';
+    }, 1000);
+
+    // Phase 4: Fade out overlay, reveal banner beneath (1500ms → 1700ms)
+    setTimeout(() => {
+      overlay.style.transition = 'opacity 0.2s ease';
+      overlay.style.opacity = '0';
+    }, 1520);
+
+    // Phase 5: Remove overlay
+    setTimeout(() => {
+      overlay.remove();
+    }, 1730);
   }
 
   updateCountdown(seconds) {
@@ -1224,27 +1262,30 @@ class UIController {
   getLeadFormData() {
     const firstNameInput = document.getElementById('lead-first-name-input');
     const lastNameInput = document.getElementById('lead-last-name-input');
-    const emailInput = document.getElementById('lead-email-input');
-    const consentInput = document.getElementById('lead-consent-input');
 
     return {
       firstName: firstNameInput ? firstNameInput.value.trim() : '',
       lastName: lastNameInput ? lastNameInput.value.trim() : '',
-      email: emailInput ? emailInput.value.trim() : '',
-      consent: consentInput ? consentInput.checked : false
     };
   }
 
   clearLeadFormData() {
     const firstNameInput = document.getElementById('lead-first-name-input');
     const lastNameInput = document.getElementById('lead-last-name-input');
-    const emailInput = document.getElementById('lead-email-input');
-    const consentInput = document.getElementById('lead-consent-input');
 
     if (firstNameInput) firstNameInput.value = '';
     if (lastNameInput) lastNameInput.value = '';
-    if (emailInput) emailInput.value = '';
-    if (consentInput) consentInput.checked = true;
+
+    // Reset display spans and band state
+    const firstDisplay = document.getElementById('lead-firstname-display');
+    const lastDisplay = document.getElementById('lead-lastname-display');
+    if (firstDisplay) firstDisplay.textContent = '';
+    if (lastDisplay) lastDisplay.textContent = '';
+    ['lead-band-firstname', 'lead-band-lastname'].forEach((id) => {
+      const band = document.getElementById(id);
+      if (band) band.classList.remove('has-value', 'is-active');
+    });
+
     this.clearLeadFormError();
   }
 
@@ -1259,6 +1300,38 @@ class UIController {
     const errorEl = document.getElementById('lead-form-error');
     if (!errorEl) return;
     errorEl.classList.add('hidden');
+  }
+
+  resetLeadFormBands() {
+    const ids = ['lead-info-banner', 'lead-band-firstname', 'lead-band-lastname',
+      'lead-form-lower', 'touch-keyboard', 'lead-actions'];
+    ids.forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.style.transition = 'none';
+      el.style.transform = 'translateX(100%)';
+    });
+  }
+
+  animateLeadFormIn() {
+    const ids = ['lead-info-banner', 'lead-band-firstname', 'lead-band-lastname',
+      'lead-form-lower', 'touch-keyboard', 'lead-actions'];
+    const stagger = 70; // ms between each element
+    const duration = 320;
+    ids.forEach((id, i) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      setTimeout(() => {
+        el.style.transition = `transform ${duration}ms cubic-bezier(0.22, 1, 0.36, 1)`;
+        el.style.transform = 'translateX(0)';
+      }, i * stagger);
+    });
+    // Auto-activate first name field after animation settles
+    const totalDelay = (ids.length - 1) * stagger + duration + 40;
+    setTimeout(() => {
+      const firstNameInput = document.getElementById('lead-first-name-input');
+      if (firstNameInput) firstNameInput.focus({ preventScroll: true });
+    }, totalDelay);
   }
 
   showIdleWarning() {

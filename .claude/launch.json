@@ -4,8 +4,8 @@
     {
       "name": "Frontend (static)",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8080", "--directory", "frontend"],
-      "port": 8080
+      "runtimeArgs": ["-m", "http.server", "8081", "--directory", "frontend"],
+      "port": 8081
     },
     {
       "name": "Screenshots (Playwright)",
