@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "description": "Automation tooling for UI screenshot capture.",
   "scripts": {
+    "dev": "npx serve frontend -l 3000 --no-clipboard",
     "screenshots": "node scripts/capture-screenshots.mjs",
     "record:attract": "node scripts/record-attract.mjs"
   },

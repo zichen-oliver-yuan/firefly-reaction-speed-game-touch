@@ -21,6 +21,8 @@ const CONFIG = {
     // video is disabled. This is useful if you only ever want the static demo shell
     // without the animated bands.
     disableDomAttractBands: false,
+    // Ms to hold on the first frame between video loop replays (video attract mode).
+    attractVideoHoldMs: 4000,
     // Ambient leaderboard scrolling (primarily used on the demo screen).
     ambientLeaderboardScroll: {
       enabled: true,

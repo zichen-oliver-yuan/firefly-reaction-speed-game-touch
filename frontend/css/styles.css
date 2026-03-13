@@ -53,6 +53,9 @@
   --nav-btn-width: clamp(240px, 48vw, 520px);
   --nav-btn-bottom: clamp(48px, 8vh, 120px);
   --nav-btn-stack-gap: clamp(88px, 12vh, 164px);
+  --section-banner-height: clamp(110px, 15.2vh, 291px);
+  --section-band-height: clamp(116px, 15.7vh, 300px);
+  --floating-btn-clearance: clamp(150px, 28vh, 420px);
 }
 
 * {
@@ -115,6 +118,7 @@ body {
   position: relative;
   width: 100vw;
   height: 100vh;
+  height: 100dvh;
   overflow: hidden; /* prevent scaled attract container from extending document scroll area */
 }
 
@@ -364,7 +368,7 @@ body {
   background: rgba(246, 246, 247, 0.52);
   border-radius: 0;
   overflow-y: auto;
-  padding: 18px 0 42vh;
+  padding: 18px 0 var(--floating-btn-clearance);
   scrollbar-width: auto;
   scrollbar-color: rgba(82, 84, 90, 0.95) rgba(18, 19, 22, 0.22);
 }
@@ -393,17 +397,24 @@ body {
 
 .leaderboard-entry {
   display: grid;
-  grid-template-columns: 140px minmax(260px, 1fr) 360px;
+  grid-template-columns: clamp(72px, 12vw, 140px) minmax(0, 1fr) clamp(140px, 26vw, 360px);
   align-items: center;
-  gap: 22px;
+  gap: clamp(8px, 1.5vw, 22px);
   color: rgba(31, 32, 34, 0.46);
   font-family: var(--font-led);
-  font-size: clamp(1.8rem, 3.9vw, 3.6rem);
-  padding: 8px 58px;
+  font-size: clamp(1.4rem, 3.9vw, 3.6rem);
+  padding: clamp(6px, 1vh, 10px) clamp(16px, 5vw, 58px);
 }
 
 .leaderboard-entry .leaderboard-score {
   text-align: right;
+}
+
+.leaderboard-entry .leaderboard-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .leaderboard-entry.player-highlight {
@@ -632,7 +643,7 @@ body {
 
 .score-game-over-banner {
   background: #b2ff00;
-  height: 291px;
+  height: var(--section-banner-height);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -642,17 +653,17 @@ body {
 .score-game-over-text {
   font-family: var(--font-schrifted);
   font-weight: 400;
-  font-size: clamp(72px, 13.3vw, 144px);
+  font-size: clamp(42px, 13.3vw, 144px);
   color: #000;
   letter-spacing: -0.05em;
   white-space: nowrap;
 }
 
 .score-band {
-  height: 300px;
+  height: var(--section-band-height);
   width: 100%;
   flex-shrink: 0;
-  padding: 16px 17px 12px;
+  padding: clamp(8px, 1.5vh, 16px) clamp(12px, 1.6vw, 17px) clamp(8px, 1.2vh, 12px);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -664,7 +675,7 @@ body {
 
 .score-band-label {
   font-family: var(--font-mono);
-  font-size: clamp(28px, 4.6vw, 50px);
+  font-size: clamp(18px, 4.6vw, 50px);
   color: #000;
   letter-spacing: -0.05em;
   text-transform: uppercase;
@@ -674,7 +685,7 @@ body {
 .score-band-value {
   font-family: var(--font-schrifted);
   font-weight: 400;
-  font-size: clamp(96px, 17vw, 184px);
+  font-size: clamp(48px, 17vw, 184px);
   color: #000;
   letter-spacing: -0.05em;
   text-align: right;
@@ -683,7 +694,8 @@ body {
 
 .score-cta-area {
   flex: 1;
-  padding: 60px 98px;
+  min-height: 0;
+  padding: clamp(16px, 3vh, 60px) clamp(18px, 5.2vw, 98px);
   display: flex;
   align-items: flex-start;
 }
@@ -691,14 +703,14 @@ body {
 .score-cta-text {
   font-family: var(--font-schrifted);
   font-weight: 500;
-  font-size: clamp(36px, 5.9vw, 64px);
+  font-size: clamp(20px, 5.9vw, 64px);
   color: #fff;
   letter-spacing: -0.05em;
   line-height: 1.2;
 }
 
 .score-actions {
-  padding-bottom: 60px;
+  padding-bottom: clamp(16px, 5vh, 60px);
   display: flex;
   justify-content: center;
   flex-shrink: 0;
@@ -745,7 +757,7 @@ body {
 /* YOUR INFO banner */
 .lead-info-banner {
   background: #b2ff00;
-  height: 291px;
+  height: var(--section-banner-height);
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -755,17 +767,17 @@ body {
 .lead-info-banner-text {
   font-family: var(--font-schrifted);
   font-weight: 400;
-  font-size: clamp(72px, 13.3vw, 144px);
+  font-size: clamp(42px, 13.3vw, 144px);
   color: #000;
   letter-spacing: -0.05em;
 }
 
 /* Input bands */
 .lead-band {
-  height: 300px;
+  height: var(--section-band-height);
   width: 100%;
   flex-shrink: 0;
-  padding: 16px 17px;
+  padding: clamp(8px, 1.5vh, 16px) clamp(12px, 1.6vw, 17px);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -778,7 +790,7 @@ body {
 
 .lead-band-label {
   font-family: var(--font-mono);
-  font-size: clamp(28px, 4.6vw, 50px);
+  font-size: clamp(18px, 4.6vw, 50px);
   color: #000;
   letter-spacing: -0.05em;
   text-transform: uppercase;
@@ -797,7 +809,7 @@ body {
 .lead-band-placeholder {
   font-family: var(--font-schrifted);
   font-weight: 400;
-  font-size: clamp(60px, 17vw, 184px);
+  font-size: clamp(42px, 17vw, 184px);
   color: #000;
   letter-spacing: -0.05em;
   line-height: 1;
@@ -816,7 +828,7 @@ body {
 .lead-band-cursor {
   display: inline-block;
   width: clamp(3px, 0.4vw, 5px);
-  height: clamp(40px, 11.5vw, 124px); /* ~67% of 184px value text = cap height */
+  height: clamp(28px, 11.5vw, 124px); /* ~67% of value text cap height */
   background: #000;
   margin-left: 6px;
   vertical-align: middle;
@@ -868,7 +880,7 @@ body {
 
 .touch-keyboard {
   /* flex: 1; */
-  min-height: 280px;
+  min-height: clamp(170px, 26vh, 280px);
   background: rgba(30, 30, 30, 0.9);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
@@ -1407,6 +1419,12 @@ body {
   background: #000;
 }
 
+.screen-leaderboard .leaderboard-list {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+
 /* Teal "LEADERBOARD" header bar */
 .lb-dark-header {
   background: #03eabb;
@@ -1424,7 +1442,7 @@ body {
 /* Dark-mode leaderboard list */
 .leaderboard-list-dark {
   background: #000;
-  padding: 0 0 42vh;
+  padding: 0 0 var(--floating-btn-clearance);
   scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
 }
 
@@ -1440,11 +1458,11 @@ body {
 .leaderboard-list-dark .leaderboard-entry {
   font-family: var(--font-schrifted);
   font-weight: 400;
-  font-size: clamp(3rem, 8vw, 8.6rem);
+  font-size: clamp(1.6rem, 8vw, 8.6rem);
   color: rgba(255, 255, 255, 0.38);
   letter-spacing: -0.03em;
   padding: clamp(6px, 1.2vh, 18px) clamp(24px, 5vw, 54px);
-  min-height: clamp(80px, 12.5vh, 156px);
+  min-height: clamp(64px, 12.5vh, 156px);
   align-items: center;
   line-height: 1.15;
   border: none;
@@ -1504,4 +1522,31 @@ body {
 
 #lead-back-btn {
   bottom: calc(var(--nav-btn-bottom) + var(--nav-btn-stack-gap));
+}
+
+@media (max-height: 760px) {
+  :root {
+    --nav-btn-bottom: clamp(10px, 3vh, 24px);
+    --floating-btn-clearance: clamp(96px, 20vh, 180px);
+  }
+
+  .score-actions {
+    padding-bottom: clamp(8px, 2vh, 16px);
+  }
+
+  .touch-keyboard {
+    min-height: clamp(140px, 22vh, 220px);
+  }
+}
+
+@media (max-width: 640px) {
+  .leaderboard-entry {
+    grid-template-columns: 56px minmax(0, 1fr) 104px;
+    gap: 8px;
+    padding-inline: 12px;
+  }
+
+  .leaderboard-entry.player-highlight {
+    font-size: clamp(1.5rem, 5.3vw, 2.4rem);
+  }
 }
