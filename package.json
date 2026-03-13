@@ -4,7 +4,8 @@
   "version": "1.0.0",
   "description": "Automation tooling for UI screenshot capture.",
   "scripts": {
-    "screenshots": "node scripts/capture-screenshots.mjs"
+    "screenshots": "node scripts/capture-screenshots.mjs",
+    "record:attract": "node scripts/record-attract.mjs"
   },
   "devDependencies": {
     "playwright": "^1.55.0"
