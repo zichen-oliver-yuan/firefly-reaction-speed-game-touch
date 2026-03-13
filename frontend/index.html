@@ -1,215 +1,304 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Firefly - Reaction Speed Game</title>
-  <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="css/styles.css?v=17">
-</head>
-<body>
-  <div id="game-container" class="game-container">
-    <div class="attract-video-bg-wrap">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <title>Firefly - Reaction Speed Game</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="css/styles.css?v=18" />
+  </head>
+  <body>
+    <div id="game-container" class="game-container">
+      <div class="attract-video-bg-wrap"></div>
+      <section id="screen-demo" class="screen screen-demo">
+        <!-- Attract: colour bands that reveal one-by-one, grow, scroll, then zoom out to 12-row grid -->
+        <div class="attract-bands" id="attract-bands">
+          <!-- Phase 0–3: original 3 large bands -->
+          <div class="attract-band attract-band-teal">
+            <div class="attract-track" id="attract-track-0">
+              <span class="attract-item">PLAY TO WIN!</span>
+            </div>
+          </div>
+          <div class="attract-band attract-band-magenta">
+            <div class="attract-track" id="attract-track-1">
+              <span class="attract-item">$1,000</span>
+            </div>
+          </div>
+          <div class="attract-band attract-band-lime">
+            <div class="attract-track" id="attract-track-2">
+              <span class="attract-item">CASH</span>
+            </div>
+          </div>
+          <!-- Phase 4: extra 9 bands (flex-grow: 0 until Phase 4 fires) -->
+          <div class="attract-band attract-band-extra attract-band-teal">
+            <div class="attract-track" id="attract-track-3">
+              <span class="attract-item">PLAY TO WIN!</span>
+            </div>
+          </div>
+          <div class="attract-band attract-band-extra attract-band-magenta">
+            <div class="attract-track" id="attract-track-4">
+              <span class="attract-item">$1,000</span>
+            </div>
+          </div>
+          <div class="attract-band attract-band-extra attract-band-lime">
+            <div class="attract-track" id="attract-track-5">
+              <span class="attract-item">CASH</span>
+            </div>
+          </div>
+          <div class="attract-band attract-band-extra attract-band-teal">
+            <div class="attract-track" id="attract-track-6">
+              <span class="attract-item">PLAY TO WIN!</span>
+            </div>
+          </div>
+          <div class="attract-band attract-band-extra attract-band-magenta">
+            <div class="attract-track" id="attract-track-7">
+              <span class="attract-item">$1,000</span>
+            </div>
+          </div>
+          <div class="attract-band attract-band-extra attract-band-lime">
+            <div class="attract-track" id="attract-track-8">
+              <span class="attract-item">CASH</span>
+            </div>
+          </div>
+          <div class="attract-band attract-band-extra attract-band-teal">
+            <div class="attract-track" id="attract-track-9">
+              <span class="attract-item">PLAY TO WIN!</span>
+            </div>
+          </div>
+          <div class="attract-band attract-band-extra attract-band-magenta">
+            <div class="attract-track" id="attract-track-10">
+              <span class="attract-item">$1,000</span>
+            </div>
+          </div>
+          <div class="attract-band attract-band-extra attract-band-lime">
+            <div class="attract-track" id="attract-track-11">
+              <span class="attract-item">CASH</span>
+            </div>
+          </div>
+        </div>
+        <video
+          class="attract-video-bg"
+          src="assets/attract-loop.mp4"
+          autoplay
+          muted
+          playsinline></video>
+        <!-- Leaderboard panel: slides up from the bottom -->
+        <div id="demo-lb-panel" class="demo-lb-panel">
+          <div class="demo-lb-header">LEADERBOARD</div>
+          <div
+            id="demo-leaderboard-list"
+            class="leaderboard-list leaderboard-list-demo leaderboard-list-dark"></div>
+        </div>
 
+        <!-- PLAY button always on top -->
+        <button id="demo-start-btn" class="demo-play-btn nav-play-btn">
+          PLAY
+        </button>
+      </section>
+
+      <section id="screen-welcome" class="screen screen-welcome hidden">
+        <div class="screen-shell shell-light center-content">
+          <div class="panel-copy">Welcome</div>
+        </div>
+      </section>
+
+      <section id="screen-countdown" class="screen screen-countdown hidden">
+        <div id="countdown-display" class="countdown-display cd-teal">
+          <span id="pre-game-countdown-value" class="countdown-number">3</span>
+        </div>
+      </section>
+
+      <section id="screen-game" class="screen screen-game hidden">
+        <div class="screen-shell isc-shell">
+          <header class="isc-game-header">
+            <div class="isc-panel isc-panel-points">
+              <span class="isc-panel-label">POINTS</span>
+              <span
+                id="current-score"
+                class="isc-panel-value odometer"
+                data-value="0"
+                >0</span
+              >
+            </div>
+            <div class="isc-panel isc-panel-time">
+              <span class="isc-panel-label">TIME LEFT</span>
+              <span
+                id="time-left"
+                class="isc-panel-value odometer"
+                data-value="30"
+                >30</span
+              >
+            </div>
+          </header>
+
+          <div id="game-content" class="screen-main screen-main-game">
+            <div id="button-grid" class="button-grid isc-button-grid"></div>
+            <div id="missed-overlay" class="missed-overlay hidden">MISSED!</div>
+            <span
+              id="waiting-message"
+              class="led led-subtitle waiting-message sr-only"
+              >START!!</span
+            >
+          </div>
+        </div>
+      </section>
+
+      <section id="screen-feedback" class="screen screen-feedback hidden">
+        <div class="screen-shell shell-dark center-content"></div>
+      </section>
+
+      <section id="screen-score" class="screen screen-score hidden">
+        <div class="score-game-over-banner">
+          <span class="score-game-over-text">GAME OVER</span>
+        </div>
+        <div class="score-band score-band-points">
+          <span class="score-band-label">POINTS</span>
+          <span id="final-score" class="score-band-value">0</span>
+        </div>
+        <div class="score-band score-band-reaction">
+          <span class="score-band-label">AVERAGE REACTION TIME</span>
+          <span id="avg-reaction" class="score-band-value">0.000sec</span>
+        </div>
+        <div class="score-cta-area">
+          <p class="score-cta-text">
+            Enter your info next to compete on the leader board for $1000 cash
+            award and more!
+          </p>
+        </div>
+        <div class="score-actions">
+          <button id="score-done-btn" class="score-next-btn nav-play-btn">
+            NEXT
+          </button>
+        </div>
+      </section>
+
+      <section id="screen-lead-form" class="screen screen-lead-form hidden">
+        <!-- YOUR INFO banner — slides in first -->
+        <div class="lead-info-banner" id="lead-info-banner">
+          <span class="lead-info-banner-text">YOUR INFO</span>
+        </div>
+
+        <!-- FIRST NAME band — slides in second -->
+        <div class="lead-band lead-band-firstname" id="lead-band-firstname">
+          <span class="lead-band-label">FIRST NAME</span>
+          <div class="lead-band-value-row">
+            <span class="lead-band-typed" id="lead-firstname-display"></span
+            ><span class="lead-band-cursor"></span
+            ><span class="lead-band-placeholder">click to type</span>
+          </div>
+        </div>
+
+        <!-- LAST NAME band — slides in third -->
+        <div class="lead-band lead-band-lastname" id="lead-band-lastname">
+          <span class="lead-band-label">LAST NAME</span>
+          <div class="lead-band-value-row">
+            <span class="lead-band-typed" id="lead-lastname-display"></span
+            ><span class="lead-band-cursor"></span
+            ><span class="lead-band-placeholder">click to type</span>
+          </div>
+        </div>
+
+        <!-- Hidden inputs that TouchKeyboard writes to for first/last name -->
+        <input
+          type="text"
+          id="lead-first-name-input"
+          class="lead-hidden-input"
+          maxlength="40"
+          inputmode="none"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="none"
+          spellcheck="false"
+          readonly
+          aria-hidden="true" />
+        <input
+          type="text"
+          id="lead-last-name-input"
+          class="lead-hidden-input"
+          maxlength="40"
+          inputmode="none"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="none"
+          spellcheck="false"
+          readonly
+          aria-hidden="true" />
+
+        <!-- Keyboard — slides in fifth -->
+        <div id="touch-keyboard" class="touch-keyboard"></div>
+
+        <!-- Error message area — appears below keyboard -->
+        <div class="lead-form-lower" id="lead-form-lower">
+          <div id="lead-form-error" class="lead-form-error hidden">
+            Please enter your first and last name.
+          </div>
+        </div>
+
+        <!-- Actions — slides in last -->
+        <div class="lead-actions" id="lead-actions">
+          <button id="lead-submit-btn" class="score-next-btn nav-play-btn">
+            NEXT
+          </button>
+        </div>
+      </section>
+
+      <section id="screen-leaderboard" class="screen screen-leaderboard hidden">
+        <div class="screen-shell">
+          <div class="lb-dark-header">LEADERBOARD</div>
+          <div
+            id="leaderboard-list"
+            class="leaderboard-list leaderboard-list-demo leaderboard-list-dark"></div>
+          <button id="leaderboard-done-btn" class="lb-home-btn nav-play-btn">
+            HOME
+          </button>
+        </div>
+      </section>
+
+      <section
+        id="screen-idle-warning"
+        class="screen screen-idle-warning hidden">
+        <div class="screen-shell shell-dark">
+          <header class="led-header">
+            <div class="led-row led-row-title">
+              <span class="led led-title">PAUSED</span>
+            </div>
+            <div class="led-row led-row-sub">
+              <span class="led led-subtitle">ARE YOU STILL HERE?</span>
+            </div>
+          </header>
+          <div class="screen-main center-content">
+            <div class="idle-warning-content">
+              <div class="idle-countdown">
+                RETURNING TO DEMO IN <span id="idle-countdown-value">20</span>
+              </div>
+              <button id="resume-btn" class="btn btn-primary nav-play-btn">
+                RESUME
+              </button>
+            </div>
+          </div>
+          <img
+            src="assets/SVG/Firefly_Lockup_Horz_DarkBlue_RGB.svg"
+            alt="Firefly"
+            class="logo-watermark logo-watermark-dark" />
+        </div>
+      </section>
+
+      <button
+        id="leaderboard-back-top-btn"
+        class="btn btn-secondary back-top-btn nav-play-btn hidden">
+        BACK TO TOP
+      </button>
     </div>
-    <section id="screen-demo" class="screen screen-demo">
-      <!-- Attract: colour bands that reveal one-by-one, grow, scroll, then zoom out to 12-row grid -->
-      <div class="attract-bands" id="attract-bands">
-        <!-- Phase 0–3: original 3 large bands -->
-        <div class="attract-band attract-band-teal">
-          <div class="attract-track" id="attract-track-0">
-            <span class="attract-item">PLAY TO WIN!</span>
-          </div>
-        </div>
-        <div class="attract-band attract-band-magenta">
-          <div class="attract-track" id="attract-track-1">
-            <span class="attract-item">$1,000</span>
-          </div>
-        </div>
-        <div class="attract-band attract-band-lime">
-          <div class="attract-track" id="attract-track-2">
-            <span class="attract-item">CASH</span>
-          </div>
-        </div>
-        <!-- Phase 4: extra 9 bands (flex-grow: 0 until Phase 4 fires) -->
-        <div class="attract-band attract-band-extra attract-band-teal">
-          <div class="attract-track" id="attract-track-3"><span class="attract-item">PLAY TO WIN!</span></div>
-        </div>
-        <div class="attract-band attract-band-extra attract-band-magenta">
-          <div class="attract-track" id="attract-track-4"><span class="attract-item">$1,000</span></div>
-        </div>
-        <div class="attract-band attract-band-extra attract-band-lime">
-          <div class="attract-track" id="attract-track-5"><span class="attract-item">CASH</span></div>
-        </div>
-        <div class="attract-band attract-band-extra attract-band-teal">
-          <div class="attract-track" id="attract-track-6"><span class="attract-item">PLAY TO WIN!</span></div>
-        </div>
-        <div class="attract-band attract-band-extra attract-band-magenta">
-          <div class="attract-track" id="attract-track-7"><span class="attract-item">$1,000</span></div>
-        </div>
-        <div class="attract-band attract-band-extra attract-band-lime">
-          <div class="attract-track" id="attract-track-8"><span class="attract-item">CASH</span></div>
-        </div>
-        <div class="attract-band attract-band-extra attract-band-teal">
-          <div class="attract-track" id="attract-track-9"><span class="attract-item">PLAY TO WIN!</span></div>
-        </div>
-        <div class="attract-band attract-band-extra attract-band-magenta">
-          <div class="attract-track" id="attract-track-10"><span class="attract-item">$1,000</span></div>
-        </div>
-        <div class="attract-band attract-band-extra attract-band-lime">
-          <div class="attract-track" id="attract-track-11"><span class="attract-item">CASH</span></div>
-        </div>
-      </div>
-      <video
-        class="attract-video-bg"
-        src="assets/attract-loop.mp4"
-        autoplay
-        muted
-        playsinline
-      ></video>
-      <!-- Leaderboard panel: slides up from the bottom -->
-      <div id="demo-lb-panel" class="demo-lb-panel">
-        <div class="demo-lb-header">LEADERBOARD</div>
-        <div id="demo-leaderboard-list" class="leaderboard-list leaderboard-list-demo leaderboard-list-dark"></div>
-      </div>
 
-      <!-- PLAY button always on top -->
-      <button id="demo-start-btn" class="demo-play-btn nav-play-btn">PLAY</button>
-    </section>
-
-    <section id="screen-welcome" class="screen screen-welcome hidden">
-      <div class="screen-shell shell-light center-content">
-        <div class="panel-copy">Welcome</div>
-      </div>
-    </section>
-
-    <section id="screen-countdown" class="screen screen-countdown hidden">
-      <div id="countdown-display" class="countdown-display cd-teal">
-        <span id="pre-game-countdown-value" class="countdown-number">3</span>
-      </div>
-    </section>
-
-    <section id="screen-game" class="screen screen-game hidden">
-      <div class="screen-shell isc-shell">
-        <header class="isc-game-header">
-          <div class="isc-panel isc-panel-points">
-            <span class="isc-panel-label">POINTS</span>
-            <span id="current-score" class="isc-panel-value odometer" data-value="0">0</span>
-          </div>
-          <div class="isc-panel isc-panel-time">
-            <span class="isc-panel-label">TIME LEFT</span>
-            <span id="time-left" class="isc-panel-value odometer" data-value="30">30</span>
-          </div>
-        </header>
-
-        <div id="game-content" class="screen-main screen-main-game">
-          <div id="button-grid" class="button-grid isc-button-grid"></div>
-          <div id="missed-overlay" class="missed-overlay hidden">MISSED!</div>
-          <span id="waiting-message" class="led led-subtitle waiting-message sr-only">START!!</span>
-        </div>
-      </div>
-    </section>
-
-    <section id="screen-feedback" class="screen screen-feedback hidden">
-      <div class="screen-shell shell-dark center-content"></div>
-    </section>
-
-    <section id="screen-score" class="screen screen-score hidden">
-      <div class="score-game-over-banner">
-        <span class="score-game-over-text">GAME OVER</span>
-      </div>
-      <div class="score-band score-band-points">
-        <span class="score-band-label">POINTS</span>
-        <span id="final-score" class="score-band-value">0</span>
-      </div>
-      <div class="score-band score-band-reaction">
-        <span class="score-band-label">AVERAGE REACTION TIME</span>
-        <span id="avg-reaction" class="score-band-value">0.000sec</span>
-      </div>
-      <div class="score-cta-area">
-        <p class="score-cta-text">Enter your info next to compete on the leader board for $1000 cash award and more!</p>
-      </div>
-      <div class="score-actions">
-        <button id="score-done-btn" class="score-next-btn nav-play-btn">NEXT</button>
-      </div>
-    </section>
-
-    <section id="screen-lead-form" class="screen screen-lead-form hidden">
-
-      <!-- YOUR INFO banner — slides in first -->
-      <div class="lead-info-banner" id="lead-info-banner">
-        <span class="lead-info-banner-text">YOUR INFO</span>
-      </div>
-
-      <!-- FIRST NAME band — slides in second -->
-      <div class="lead-band lead-band-firstname" id="lead-band-firstname">
-        <span class="lead-band-label">FIRST NAME</span>
-        <div class="lead-band-value-row">
-          <span class="lead-band-typed" id="lead-firstname-display"></span><span class="lead-band-cursor"></span><span class="lead-band-placeholder">click to type</span>
-        </div>
-      </div>
-
-      <!-- LAST NAME band — slides in third -->
-      <div class="lead-band lead-band-lastname" id="lead-band-lastname">
-        <span class="lead-band-label">LAST NAME</span>
-        <div class="lead-band-value-row">
-          <span class="lead-band-typed" id="lead-lastname-display"></span><span class="lead-band-cursor"></span><span class="lead-band-placeholder">click to type</span>
-        </div>
-      </div>
-
-      <!-- Hidden inputs that TouchKeyboard writes to for first/last name -->
-      <input type="text" id="lead-first-name-input" class="lead-hidden-input" maxlength="40" inputmode="none" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" readonly aria-hidden="true">
-      <input type="text" id="lead-last-name-input" class="lead-hidden-input" maxlength="40" inputmode="none" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" readonly aria-hidden="true">
-
-      <!-- Keyboard — slides in fifth -->
-      <div id="touch-keyboard" class="touch-keyboard"></div>
-
-      <!-- Error message area — appears below keyboard -->
-      <div class="lead-form-lower" id="lead-form-lower">
-        <div id="lead-form-error" class="lead-form-error hidden">Please enter your first and last name.</div>
-      </div>
-
-      <!-- Actions — slides in last -->
-      <div class="lead-actions" id="lead-actions">
-        <button id="lead-submit-btn" class="score-next-btn nav-play-btn">NEXT</button>
-      </div>
-
-    </section>
-
-    <section id="screen-leaderboard" class="screen screen-leaderboard hidden">
-      <div class="screen-shell">
-        <div class="lb-dark-header">LEADERBOARD</div>
-        <div id="leaderboard-list" class="leaderboard-list leaderboard-list-demo leaderboard-list-dark"></div>
-        <button id="leaderboard-done-btn" class="lb-home-btn nav-play-btn">HOME</button>
-      </div>
-    </section>
-
-    <section id="screen-idle-warning" class="screen screen-idle-warning hidden">
-      <div class="screen-shell shell-dark">
-        <header class="led-header">
-          <div class="led-row led-row-title"><span class="led led-title">PAUSED</span></div>
-          <div class="led-row led-row-sub"><span class="led led-subtitle">ARE YOU STILL HERE?</span></div>
-        </header>
-        <div class="screen-main center-content">
-          <div class="idle-warning-content">
-            <div class="idle-countdown">RETURNING TO DEMO IN <span id="idle-countdown-value">20</span></div>
-            <button id="resume-btn" class="btn btn-primary nav-play-btn">RESUME</button>
-          </div>
-        </div>
-        <img src="assets/SVG/Firefly_Lockup_Horz_DarkBlue_RGB.svg" alt="Firefly" class="logo-watermark logo-watermark-dark">
-      </div>
-    </section>
-
-    <button id="leaderboard-back-top-btn" class="btn btn-secondary back-top-btn nav-play-btn hidden">BACK TO TOP</button>
-  </div>
-
-  <script src="js/config.js?v=17"></script>
-  <script src="js/scoring.js?v=17"></script>
-  <script src="js/touch-keyboard.js?v=17"></script>
-  <script src="js/sheets.js?v=17"></script>
-  <script src="js/local-storage.js?v=17"></script>
-  <script src="js/game.js?v=17"></script>
-  <script src="js/ui.js?v=17"></script>
-  <script src="js/main.js?v=17"></script>
-</body>
+    <script src="js/config.js?v=18"></script>
+    <script src="js/scoring.js?v=18"></script>
+    <script src="js/touch-keyboard.js?v=18"></script>
+    <script src="js/sheets.js?v=18"></script>
+    <script src="js/local-storage.js?v=18"></script>
+    <script src="js/game.js?v=18"></script>
+    <script src="js/ui.js?v=18"></script>
+    <script src="js/main.js?v=18"></script>
+  </body>
 </html>
