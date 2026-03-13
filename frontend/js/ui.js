@@ -580,10 +580,12 @@ class UIController {
 
     // Rebuild each original track with a single seed item (small font-size)
     this.attractBandConfigs.forEach(({ id, text }) => resetTrack(id, text));
-    // Reset extra band tracks to a single seed item
-    this.attractExtraBandConfigs.forEach(({ id, text }) =>
-      resetTrack(id, text)
-    );
+    // Reset extra band tracks to a single seed item and re-show any hidden bands
+    this.attractExtraBandConfigs.forEach(({ id, text }) => {
+      resetTrack(id, text);
+      const band = document.getElementById(id)?.closest(".attract-band");
+      if (band) band.style.display = "";
+    });
   }
 
   /**
@@ -612,40 +614,56 @@ class UIController {
     const viewportW =
       window.innerWidth || document.documentElement?.clientWidth || 1080;
 
-    const containerScale = 4; // 12 total bands / 3 visible in Phase 3
-    const largeFontSize = (viewportH / 12) * 0.9;
+    // Adaptive band count: at 4K the container scale(4) creates a ~15,360px
+    // composited layer that overwhelms the GPU.  Use fewer total bands on large
+    // screens so the container scale is lower and the compositor budget is sane.
+    //   totalBands must be a multiple of 3 (the original visible band count).
+    //   containerScale = totalBands / 3.
+    const totalPx = viewportW * viewportH;
+    let totalBands;
+    if (totalPx > 6_000_000) {
+      // ~4K (2160×3840 = 8.3M) → 6 bands, scale 2 → virtual 7,680px
+      totalBands = 6;
+    } else if (totalPx > 3_000_000) {
+      // ~1440p → 9 bands, scale 3
+      totalBands = 9;
+    } else {
+      // laptops / 1080p → 12 bands, scale 4 (original)
+      totalBands = 12;
+    }
+    const containerScale = totalBands / 3;
+    const extraBandCount = totalBands - 3; // how many extra bands to activate
+
+    const largeFontSize = (viewportH / totalBands) * 0.9;
 
     // Fixed initial scale chosen to visually match the previous grow effect.
     const initialScale = 0.3;
 
-    // Adaptive copy count: at 4K (≥2160px tall) the large font creates enormous
-    // compositor layers that overwhelm the GPU.  Scale down from the default of 12
-    // based on the total pixel area the tracks would consume.
-    // At 1080p: 12 copies (original). At 4K: ~4 copies — still seamless, much lighter.
-    const totalPx = viewportW * viewportH;
+    // Adaptive copy count per band: fewer copies at higher resolutions since
+    // the text is already very large and tracks are enormous compositor layers.
     let copiesPerBand;
     if (totalPx > 6_000_000) {
-      // ~4K (2160×3840 = 8.3M)
       copiesPerBand = 4;
     } else if (totalPx > 3_000_000) {
-      // ~1440p
       copiesPerBand = 6;
     } else {
-      copiesPerBand = 12; // laptops / 1080p
+      copiesPerBand = 12;
     }
 
     console.log(
-      `[attract] _getAttractMeasurements: viewportH=${viewportH}, viewportW=${viewportW}, totalPx=${totalPx}, largeFontSize=${largeFontSize.toFixed(
+      `[attract] _getAttractMeasurements: viewportH=${viewportH}, viewportW=${viewportW}, totalPx=${totalPx}, totalBands=${totalBands}, containerScale=${containerScale}, extraBandCount=${extraBandCount}, largeFontSize=${largeFontSize.toFixed(
         1
       )}, initialScale=${initialScale.toFixed(
         3
-      )}, containerScale=${containerScale}, copiesPerBand=${copiesPerBand}`
+      )}, copiesPerBand=${copiesPerBand}`
     );
     this.attractMeasurementsCache = {
       largeFontSize,
       initialScale,
       containerScale,
       copiesPerBand,
+      totalBands,
+      extraBandCount,
     };
     return this.attractMeasurementsCache;
   }
@@ -658,11 +676,6 @@ class UIController {
         return;
       }
 
-      const allConfigs = [
-        ...this.attractBandConfigs,
-        ...this.attractExtraBandConfigs,
-      ];
-
       const m = this._getAttractMeasurements();
       if (!m) {
         console.error(
@@ -670,7 +683,26 @@ class UIController {
         );
         return;
       }
-      const { largeFontSize, initialScale, containerScale, copiesPerBand } = m;
+      const {
+        largeFontSize,
+        initialScale,
+        containerScale,
+        copiesPerBand,
+        extraBandCount,
+      } = m;
+
+      // Only use the first `extraBandCount` extra bands (adaptive for 4K).
+      const activeExtras = this.attractExtraBandConfigs.slice(
+        0,
+        extraBandCount
+      );
+      const allConfigs = [...this.attractBandConfigs, ...activeExtras];
+
+      // Hide unused extra bands so they don't participate in flex layout.
+      this.attractExtraBandConfigs.forEach(({ id }, i) => {
+        const band = document.getElementById(id)?.closest(".attract-band");
+        if (band) band.style.display = i < extraBandCount ? "" : "none";
+      });
       console.log(`[attract] startAttractScroll: classes="${bands.className}"`);
       console.log(
         `[attract] startAttractScroll: largeFontSize=${largeFontSize.toFixed(
@@ -794,16 +826,15 @@ class UIController {
   }
 
   /**
-   * Phase 4: zoom-out — the .attract-bands container animates scale(4 → 1).
+   * Phase 4: zoom-out — the .attract-bands container animates scale(N → 1).
    *
-   * All 12 bands already have flex-grow:1 (equal DOM height = totalH/12) and
-   * their scalers at scale(1) (text at 90% of DOM band height).  The container
-   * was at scale(4) during Phase 3, showing only the top 3 bands. Animating
-   * the container to scale(1) reveals all 12 bands proportionally — a true
-   * zoom-out with zero layout recalculation per frame (compositor-only).
+   * N = containerScale (adaptive: 4 on 1080p, 2 on 4K) so the virtual
+   * composited area stays manageable on high-resolution displays.
    *
-   *   text:band ratio throughout = (largeFontSize × scaler(1)) / (totalH/12)
-   *                               = (totalH/12 × 0.9) / (totalH/12) = 0.9 ✓
+   * All active bands already have flex-grow:1 (equal DOM height) and
+   * their scalers at scale(1).  The container was at scale(N) during Phase 3,
+   * showing only the top 3 bands. Animating to scale(1) reveals all bands
+   * proportionally — a true zoom-out with zero layout recalculation (compositor-only).
    */
   showAttractPhase4() {
     const bands = document.getElementById("attract-bands");
@@ -811,8 +842,11 @@ class UIController {
       console.error("[attract] showAttractPhase4: #attract-bands not found");
       return;
     }
+
+    const m = this._getAttractMeasurements();
+    const cs = m ? m.containerScale : 4; // fallback to original
     console.log(
-      `[attract] showAttractPhase4: bands.className="${bands.className}", bands.style.scale="${bands.style.scale}"`
+      `[attract] showAttractPhase4: containerScale=${cs}, bands.className="${bands.className}", bands.style.scale="${bands.style.scale}"`
     );
 
     // Cancel any lingering grow WAAPI on individual scalers so they stay at scale(1).
@@ -831,12 +865,12 @@ class UIController {
 
     void bands.offsetHeight; // commit scaler cleanup before starting container WAAPI
 
-    // WAAPI zoom-out on the container: scale(4 → 1) over 0.9 s (compositor-only).
+    // WAAPI zoom-out on the container: scale(N → 1) over 0.9 s (compositor-only).
     // fill:'none' so the animation does NOT linger after it ends — otherwise the
-    // fill:forwards effect (scale:'1') overrides the inline bands.style.scale='4'
-    // set in Phase 3 of the NEXT cycle, causing all 12 bands to appear at scale(1).
+    // fill:forwards effect (scale:'1') overrides the inline bands.style.scale set
+    // in Phase 3 of the NEXT cycle, causing all bands to appear at scale(1).
     // The 'finish' handler commits the final state as an inline style instead.
-    const zoomAnim = bands.animate([{ scale: "4" }, { scale: "1" }], {
+    const zoomAnim = bands.animate([{ scale: String(cs) }, { scale: "1" }], {
       duration: 900,
       easing: "cubic-bezier(0.22, 1, 0.36, 1)",
       fill: "none",
@@ -999,6 +1033,9 @@ class UIController {
     const bands = document.getElementById("attract-bands");
     if (!bands) return;
 
+    const m = this._getAttractMeasurements();
+    const cs = m ? m.containerScale : 4;
+
     switch (phaseName) {
       case "phase1":
         bands.classList.add("attract-phase-1");
@@ -1009,13 +1046,13 @@ class UIController {
         break;
 
       case "phase3":
-        // Phase 3: 3 large bands, scrolling, container at scale(4)
+        // Phase 3: 3 large bands, scrolling, container at scale(N)
         bands.classList.add(
           "attract-phase-1",
           "attract-phase-2",
           "attract-growing"
         );
-        bands.style.scale = "4";
+        bands.style.scale = String(cs);
         // Schedule track building in next moment to let layout settle
         setTimeout(() => {
           this.startAttractScroll();
@@ -1023,13 +1060,13 @@ class UIController {
         break;
 
       case "phase4":
-        // Phase 4: 12-band grid, container zoom-out animation
+        // Phase 4: adaptive-band grid, container zoom-out animation
         bands.classList.add(
           "attract-phase-1",
           "attract-phase-2",
           "attract-growing"
         );
-        bands.style.scale = "4";
+        bands.style.scale = String(cs);
         // Build tracks first
         setTimeout(() => {
           this.startAttractScroll();
