@@ -1,6 +1,54 @@
 /** Main application entry point (touch display mode). */
 
 document.addEventListener('DOMContentLoaded', () => {
+  const params = new URLSearchParams(window.location.search);
+  window.isRecordingMode = params.get('record') === '1';
+  if (window.isRecordingMode && document.body) {
+    document.body.classList.add('recording-mode');
+  }
+
+  // ?video=1 in the URL overrides the config flag (either direction).
+  const videoParam = params.get('video');
+  const useVideoAttract = videoParam !== null
+    ? videoParam === '1'
+    : !!(window.CONFIG && window.CONFIG.ui && window.CONFIG.ui.useVideoAttract);
+  const disableDomAttractBands = !!(window.CONFIG && window.CONFIG.ui && window.CONFIG.ui.disableDomAttractBands);
+
+  window.useVideoAttract = useVideoAttract;
+  window.disableDomAttractBands = disableDomAttractBands;
+
+  if (document.body) {
+    document.body.classList.toggle('use-video-attract', useVideoAttract);
+    document.body.classList.toggle('no-dom-attract', disableDomAttractBands);
+  }
+
+  window.setAttractVideoMode = (enabled) => {
+    const next = !!enabled;
+    window.useVideoAttract = next;
+    if (document.body) {
+      document.body.classList.toggle('use-video-attract', next);
+    }
+    // Restart the cycle so it picks up the new mode (video vs DOM bands).
+    if (window.ui && window.game && window.game.state === window.GameState.DEMO && window.ui.currentScreen === 'demo') {
+      window.ui.startAttractCycle();
+    }
+    console.log(`[attract] video mode: ${next ? 'ON' : 'OFF'}`);
+  };
+
+  window.setDomAttractEnabled = (enabled) => {
+    const next = !!enabled;
+    window.disableDomAttractBands = !next;
+    if (document.body) {
+      document.body.classList.toggle('no-dom-attract', !next);
+    }
+    if (!next && window.ui) {
+      window.ui.stopAttractCycle();
+    } else if (next && window.ui && window.game && window.game.state === window.GameState.DEMO && window.ui.currentScreen === 'demo' && !window.useVideoAttract) {
+      window.ui.startAttractCycle();
+    }
+    console.log(`[attract] DOM bands: ${next ? 'ON' : 'OFF'}`);
+  };
+
   window.ui = new UIController();
   window.game = new Game();
 
@@ -89,6 +137,7 @@ function setupTouchKeyboard() {
 
 function setupEventHandlers() {
   let leadSubmitInFlight = false;
+  let leadFormSkipPressesRemaining = null;
 
   const bindPress = (element, handler) => {
     if (!element) return;
@@ -98,12 +147,18 @@ function setupEventHandlers() {
       const now = Date.now();
       if (now - lastPressTs < 280) return;
       lastPressTs = now;
-      event.preventDefault();
+      if (event && typeof event.preventDefault === 'function' && event.cancelable) {
+        event.preventDefault();
+      }
       handler(event);
     };
 
-    // Touch kiosk flow: pointerdown only to avoid ghost click on the next screen.
     element.addEventListener('pointerdown', run);
+    element.addEventListener('click', run);
+    element.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      run(event);
+    });
   };
 
   const demoStartBtn = document.getElementById('demo-start-btn');
@@ -118,6 +173,7 @@ function setupEventHandlers() {
 
   bindPress(scoreDoneBtn, () => {
     if (window.game && window.ui) {
+      leadFormSkipPressesRemaining = null;
       window.ui.clearLeadFormError();
       window.game.setState(window.GameState.LEAD_FORM);
     }
@@ -137,11 +193,56 @@ function setupEventHandlers() {
     if (leadSubmitInFlight) return;
 
     const data = window.ui.getLeadFormData();
-    if (!data.firstName || !data.lastName) {
-      window.ui.showLeadFormError('Please enter your first and last name.');
+    const firstNameEmpty = !data.firstName;
+    const lastNameEmpty = !data.lastName;
+    if (firstNameEmpty || lastNameEmpty) {
+      if (!(firstNameEmpty && lastNameEmpty)) {
+        leadFormSkipPressesRemaining = null;
+        window.ui.showLeadFormError('Please enter your first and last name.');
+        return;
+      }
+
+      if (leadFormSkipPressesRemaining === null) {
+        leadFormSkipPressesRemaining = 4;
+      } else {
+        leadFormSkipPressesRemaining = Math.max(leadFormSkipPressesRemaining - 1, 0);
+      }
+
+      if (leadFormSkipPressesRemaining > 0) {
+        const suffix = leadFormSkipPressesRemaining === 1 ? '' : 's';
+        window.ui.showLeadFormError(`Please enter your first and last name for prize contact. If you wish not to participate in the competition, press NEXT ${leadFormSkipPressesRemaining} more time${suffix} to continue.`);
+        return;
+      }
+
+      leadFormSkipPressesRemaining = null;
+      const cachedRemoteLeaderboard = window.game.getCachedRemoteLeaderboard(1000);
+      window.game.setState(window.GameState.SHOW_LEADERBOARD);
+      if (cachedRemoteLeaderboard.length > 0) {
+        window.ui.showLeaderboard(cachedRemoteLeaderboard, '', null);
+      } else {
+        window.ui.showLeaderboardLoading();
+      }
+      window.game.startLeaderboardCountdown();
+      window.game.handleUserAction();
+
+      window.game.refreshRemoteLeaderboardInBackground(1000).then((remoteLeaderboard) => {
+        const stillShowingLeaderboard = window.game
+          && window.game.state === window.GameState.SHOW_LEADERBOARD;
+        if (!stillShowingLeaderboard) return;
+
+        if (remoteLeaderboard && remoteLeaderboard.length > 0) {
+          window.ui.showLeaderboard(remoteLeaderboard, '', null);
+          return;
+        }
+
+        if (cachedRemoteLeaderboard.length === 0) {
+          window.ui.showLeaderboardError('NO SCORES YET');
+        }
+      });
       return;
     }
 
+    leadFormSkipPressesRemaining = null;
     leadSubmitInFlight = true;
     try {
       const fullName = `${data.firstName} ${data.lastName}`.trim();

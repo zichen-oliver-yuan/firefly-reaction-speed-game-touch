@@ -10,6 +10,27 @@ const CONFIG = {
     syncIntervalMs: 15000        // background sync interval (ms)
   },
 
+  // ─── UI / Attract mode ──────────────────────────────────────────────────────
+  ui: {
+    // When true, the demo screen uses a pre-rendered video (`assets/attract-loop.mov`)
+    // as the background instead of the DOM-based attract bands animation.
+    useVideoAttract: true,
+    // When true, completely hide the DOM attract bands (`#attract-bands`) even if
+    // video is disabled. This is useful if you only ever want the static demo shell
+    // without the animated bands.
+    disableDomAttractBands: true,
+    // Ambient leaderboard scrolling (primarily used on the demo screen).
+    ambientLeaderboardScroll: {
+      enabled: true,
+      demoScreenOnly: true,
+      speedPxPerSecond: 120, // primary speed control for rAF scrolling
+      // Legacy fallback knobs (used only when speedPxPerSecond is omitted):
+      stepPxPerTick: 0.5,
+      tickMs: 16,
+      resumeDelayMs: 3500 // pause after user interaction before auto-scroll resumes
+    }
+  },
+
   game: {
 
     // ─── Session length ──────────────────────────────────────────────────────

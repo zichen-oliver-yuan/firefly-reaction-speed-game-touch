@@ -9,6 +9,9 @@
 </head>
 <body>
   <div id="game-container" class="game-container">
+    <div class="attract-video-bg-wrap">
+
+    </div>
     <section id="screen-demo" class="screen screen-demo">
       <!-- Attract: colour bands that reveal one-by-one, grow, scroll, then zoom out to 12-row grid -->
       <div class="attract-bands" id="attract-bands">
@@ -57,7 +60,13 @@
           <div class="attract-track" id="attract-track-11"><span class="attract-item">CASH</span></div>
         </div>
       </div>
-
+      <video
+        class="attract-video-bg"
+        src="assets/attract-loop.mp4"
+        autoplay
+        muted
+        playsinline
+      ></video>
       <!-- Leaderboard panel: slides up from the bottom -->
       <div id="demo-lb-panel" class="demo-lb-panel">
         <div class="demo-lb-header">LEADERBOARD</div>
@@ -65,7 +74,7 @@
       </div>
 
       <!-- PLAY button always on top -->
-      <button id="demo-start-btn" class="demo-play-btn">PLAY</button>
+      <button id="demo-start-btn" class="demo-play-btn nav-play-btn">PLAY</button>
     </section>
 
     <section id="screen-welcome" class="screen screen-welcome hidden">
@@ -121,7 +130,7 @@
         <p class="score-cta-text">Enter your info next to compete on the leader board for $1000 cash award and more!</p>
       </div>
       <div class="score-actions">
-        <button id="score-done-btn" class="score-next-btn">NEXT</button>
+        <button id="score-done-btn" class="score-next-btn nav-play-btn">NEXT</button>
       </div>
     </section>
 
@@ -148,11 +157,6 @@
         </div>
       </div>
 
-      <!-- Error message area — slides in fourth -->
-      <div class="lead-form-lower" id="lead-form-lower">
-        <div id="lead-form-error" class="lead-form-error hidden">Please enter your first and last name.</div>
-      </div>
-
       <!-- Hidden inputs that TouchKeyboard writes to for first/last name -->
       <input type="text" id="lead-first-name-input" class="lead-hidden-input" maxlength="40" inputmode="none" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" readonly aria-hidden="true">
       <input type="text" id="lead-last-name-input" class="lead-hidden-input" maxlength="40" inputmode="none" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" readonly aria-hidden="true">
@@ -160,10 +164,14 @@
       <!-- Keyboard — slides in fifth -->
       <div id="touch-keyboard" class="touch-keyboard"></div>
 
+      <!-- Error message area — appears below keyboard -->
+      <div class="lead-form-lower" id="lead-form-lower">
+        <div id="lead-form-error" class="lead-form-error hidden">Please enter your first and last name.</div>
+      </div>
+
       <!-- Actions — slides in last -->
       <div class="lead-actions" id="lead-actions">
-        <button id="lead-submit-btn" class="score-next-btn">NEXT</button>
-        <button id="lead-back-btn" class="lead-back-btn">BACK</button>
+        <button id="lead-submit-btn" class="score-next-btn nav-play-btn">NEXT</button>
       </div>
 
     </section>
@@ -176,7 +184,7 @@
           <div id="leaderboard-list" class="leaderboard-list leaderboard-list-dark"></div>
         </div>
 
-        <button id="leaderboard-done-btn" class="lb-home-btn">HOME</button>
+        <button id="leaderboard-done-btn" class="lb-home-btn nav-play-btn">HOME</button>
       </div>
     </section>
 
@@ -189,14 +197,14 @@
         <div class="screen-main center-content">
           <div class="idle-warning-content">
             <div class="idle-countdown">RETURNING TO DEMO IN <span id="idle-countdown-value">20</span></div>
-            <button id="resume-btn" class="btn btn-primary">RESUME</button>
+            <button id="resume-btn" class="btn btn-primary nav-play-btn">RESUME</button>
           </div>
         </div>
         <img src="assets/SVG/Firefly_Lockup_Horz_DarkBlue_RGB.svg" alt="Firefly" class="logo-watermark logo-watermark-dark">
       </div>
     </section>
 
-    <button id="leaderboard-back-top-btn" class="btn btn-secondary back-top-btn hidden">BACK TO TOP</button>
+    <button id="leaderboard-back-top-btn" class="btn btn-secondary back-top-btn nav-play-btn hidden">BACK TO TOP</button>
   </div>
 
   <script src="js/config.js?v=17"></script>

@@ -2,6 +2,14 @@
 
 class UIController {
   constructor() {
+    const ambientScrollConfig = (window.CONFIG && window.CONFIG.ui && window.CONFIG.ui.ambientLeaderboardScroll) || {};
+    const parsedSpeedPxPerSecond = Number(ambientScrollConfig.speedPxPerSecond);
+    const parsedTickMs = Number(ambientScrollConfig.tickMs);
+    const parsedStepPxPerTick = Number(ambientScrollConfig.stepPxPerTick);
+    const legacyTickMs = Number.isFinite(parsedTickMs) && parsedTickMs > 0 ? parsedTickMs : 40;
+    const derivedLegacySpeed = Number.isFinite(parsedStepPxPerTick) && parsedStepPxPerTick >= 0
+      ? (parsedStepPxPerTick * 1000) / legacyTickMs
+      : null;
     this.currentScreen = null;
     this.currentScreenEl = null;
     this.transitionMs = 280;
@@ -12,25 +20,34 @@ class UIController {
     this.demoRefreshMs = 12000;
     this.demoLoadedOnce = false;
     this.lastLeaderboardInteractionTs = Date.now();
-    this.leaderboardAutoScrollInterval = null;
-    this.leaderboardAutoScrollStepPx = 0.35;
-    this.leaderboardAutoScrollTickMs = 40;
-    this.leaderboardAutoScrollResumeDelayMs = 3500;
+    this.ambientLeaderboardScrollEnabled = ambientScrollConfig.enabled !== false;
+    this.ambientLeaderboardScrollDemoOnly = ambientScrollConfig.demoScreenOnly !== false;
+    this.leaderboardAutoScrollSpeedPxPerSecond = Number.isFinite(parsedSpeedPxPerSecond) && parsedSpeedPxPerSecond >= 0
+      ? parsedSpeedPxPerSecond
+      : (Number.isFinite(derivedLegacySpeed) ? derivedLegacySpeed : 18);
+    this.leaderboardAutoScrollResumeDelayMs = Number.isFinite(ambientScrollConfig.resumeDelayMs)
+      ? ambientScrollConfig.resumeDelayMs
+      : 3500;
+    this.leaderboardAutoScrollRafId = null;
+    this.leaderboardAutoScrollLastFrameTs = null;
     this.leaderboardAutoScrollDirectionByList = {};
+    this.leaderboardAutoScrollPositionByList = {};
     this.lastTimeValue = null;
     this.lastScoreValue = null;
 
     // Attract cycle timers (multi-step: reveal → grow → scroll → grid → lb → repeat)
     this.attractTimers    = [];
     this.attractLbVisible = false;
+    this.attractMeasurementsCache = null; // cached on first cycle, invalidated on resize
 
     // ── Phase timing (ms from cycle start) ──
-    this.attractReveal1Ms = 1500;   // Phase 1: magenta slides up
-    this.attractReveal2Ms = 2500;   // Phase 2: lime slides up
-    this.attractGrowMs    = 3800;   // Phase 3: text grows + scrolls simultaneously
-    this.attractGridMs    = 9500;   // Phase 4: zoom-out (all 12 bands)
-    this.attractLbShowMs  = 14000;  // Leaderboard slides up
-    this.attractLbHideMs  = 24000;  // Leaderboard hides → restart cycle
+    this.attractReveal1Ms    = 1500;   // Phase 1: magenta slides up
+    this.attractReveal2Ms    = 2500;   // Phase 2: lime slides up
+    this.attractGrowMs       = 3800;   // Phase 3: text grows + scrolls simultaneously
+    this.attractGridMs       = 9500;   // Phase 4: zoom-out (all 12 bands)
+    this.attractLbShowMs     = 14000;  // Leaderboard slides up
+    this.attractLbHideMs     = 24000;  // Leaderboard hides → restart cycle (DOM mode)
+    this.attractVideoHoldMs  = 4000;   // Video mode: ms to hold on first frame before replaying
 
     // ── Marquee speed multiplier (applies to BOTH Phase 3 and Phase 4) ──
     // Multiplies each band's "speed" value to control scroll velocity.
@@ -72,6 +89,12 @@ class UIController {
     if (state !== 'demo') {
       this.stopDemoRefresh();
       this.stopAttractCycle();
+      this.stopLeaderboardAutoScroll();
+      // Pause the video background when leaving the demo screen.
+      if (window.useVideoAttract) {
+        const video = document.querySelector('.attract-video-bg');
+        if (video && !video.paused) video.pause();
+      }
     }
 
     switch (state) {
@@ -283,6 +306,11 @@ class UIController {
 
   markLeaderboardInteraction() {
     this.lastLeaderboardInteractionTs = Date.now();
+    const list = this.getActiveLeaderboardList();
+    if (list) {
+      const listKey = list.id || 'default';
+      this.leaderboardAutoScrollPositionByList[listKey] = list.scrollTop;
+    }
     this.updateBackTopButtonVisibility();
   }
 
@@ -307,36 +335,75 @@ class UIController {
   }
 
   startLeaderboardAutoScroll() {
-    if (this.leaderboardAutoScrollInterval) {
-      clearInterval(this.leaderboardAutoScrollInterval);
-      this.leaderboardAutoScrollInterval = null;
-    }
+    this.stopLeaderboardAutoScroll();
+    if (!this.ambientLeaderboardScrollEnabled) return;
+    if (this.ambientLeaderboardScrollDemoOnly && this.currentScreen !== 'demo') return;
 
-    this.leaderboardAutoScrollInterval = setInterval(() => {
+    const tick = (timestampMs) => {
+      this.leaderboardAutoScrollRafId = window.requestAnimationFrame(tick);
+
+      if (!this.ambientLeaderboardScrollEnabled) return;
+      if (this.ambientLeaderboardScrollDemoOnly && this.currentScreen !== 'demo') return;
+
       const list = this.getActiveLeaderboardList();
-      if (!list) return;
-      if (list.scrollHeight <= list.clientHeight + 2) return;
-      if (Date.now() - this.lastLeaderboardInteractionTs < this.leaderboardAutoScrollResumeDelayMs) return;
+      if (!list) {
+        this.leaderboardAutoScrollLastFrameTs = timestampMs;
+        return;
+      }
+      if (list.scrollHeight <= list.clientHeight + 2) {
+        this.leaderboardAutoScrollLastFrameTs = timestampMs;
+        return;
+      }
+      if (Date.now() - this.lastLeaderboardInteractionTs < this.leaderboardAutoScrollResumeDelayMs) {
+        this.leaderboardAutoScrollLastFrameTs = timestampMs;
+        return;
+      }
+
+      if (!Number.isFinite(this.leaderboardAutoScrollLastFrameTs)) {
+        this.leaderboardAutoScrollLastFrameTs = timestampMs;
+        return;
+      }
+
+      // Cap per-frame delta to avoid jumpy catch-up after tab/background throttling.
+      const deltaSec = Math.min((timestampMs - this.leaderboardAutoScrollLastFrameTs) / 1000, 0.05);
+      this.leaderboardAutoScrollLastFrameTs = timestampMs;
+      if (deltaSec <= 0) return;
 
       const listKey = list.id || 'default';
       const maxScrollTop = Math.max(0, list.scrollHeight - list.clientHeight);
       let direction = this.leaderboardAutoScrollDirectionByList[listKey] ?? 1;
+      let virtualTop = this.leaderboardAutoScrollPositionByList[listKey];
+      if (!Number.isFinite(virtualTop)) virtualTop = list.scrollTop;
 
-      const atBottom = list.scrollTop >= maxScrollTop - 2;
-      const atTop = list.scrollTop <= 2;
-
-      if (atBottom) direction = -1;
-      if (atTop) direction = 1;
+      if (virtualTop >= maxScrollTop - 2) direction = -1;
+      if (virtualTop <= 2) direction = 1;
 
       this.leaderboardAutoScrollDirectionByList[listKey] = direction;
-      const nextTop = list.scrollTop + (this.leaderboardAutoScrollStepPx * direction);
-      list.scrollTop = Math.max(0, Math.min(maxScrollTop, nextTop));
+      const movementPx = this.leaderboardAutoScrollSpeedPxPerSecond * deltaSec;
+      const nextTop = virtualTop + (movementPx * direction);
+      const clampedTop = Math.max(0, Math.min(maxScrollTop, nextTop));
+      this.leaderboardAutoScrollPositionByList[listKey] = clampedTop;
+      list.scrollTop = clampedTop;
       this.updateBackTopButtonVisibility();
-    }, this.leaderboardAutoScrollTickMs);
+    };
+
+    this.leaderboardAutoScrollLastFrameTs = null;
+    this.leaderboardAutoScrollRafId = window.requestAnimationFrame(tick);
+  }
+
+  stopLeaderboardAutoScroll() {
+    if (this.leaderboardAutoScrollRafId) {
+      window.cancelAnimationFrame(this.leaderboardAutoScrollRafId);
+      this.leaderboardAutoScrollRafId = null;
+    }
+    this.leaderboardAutoScrollLastFrameTs = null;
   }
 
   setupLedResizeHandler() {
-    this.onResize = () => this.refreshLedMarquee();
+    this.onResize = () => {
+      this.attractMeasurementsCache = null;
+      this.refreshLedMarquee();
+    };
     window.addEventListener('resize', this.onResize);
   }
 
@@ -364,9 +431,8 @@ class UIController {
         return;
       }
 
-      const pxPerSecond = 90;
-      const loopDistance = el.scrollWidth + 84;
-      const duration = Math.max(6, Number((loopDistance / pxPerSecond).toFixed(2)));
+      // Use a fixed marquee duration to avoid per-element width calculations.
+      const duration = 12;
       el.style.setProperty('--marquee-duration', `${duration}s`);
       el.innerHTML = `
         <span class="led-marquee-track">
@@ -396,6 +462,7 @@ class UIController {
    * Rebuilds each band track back to a single seed item.
    */
   resetAttractPhase() {
+    if (window.useVideoAttract || window.disableDomAttractBands) return; /* bands hidden/unused — skip DOM work */
     console.log('[attract] Phase 0 – reset');
     const bands = document.getElementById('attract-bands');
     if (bands) {
@@ -456,48 +523,53 @@ class UIController {
    * The track itself uses `transform: translateX()` for the marquee, which
    * composes correctly because `scale` lives on the outer wrapper.
    */
+  _getAttractMeasurements() {
+    if (this.attractMeasurementsCache) return this.attractMeasurementsCache;
+
+    const bands = document.getElementById('attract-bands');
+    if (!bands) return null;
+
+    // Use simple viewport-based sizing and fixed values to avoid heavy layout work.
+    const viewportH =
+      window.innerHeight ||
+      document.documentElement?.clientHeight ||
+      1080;
+
+    const containerScale = 4; // 12 total bands / 3 visible in Phase 3
+    const largeFontSize = (viewportH / 12) * 0.9;
+
+    // Fixed initial scale chosen to visually match the previous grow effect.
+    const initialScale = 0.3;
+
+    // Fixed copy count per band; tuned to give continuous scrolling without gaps.
+    const copiesPerBand = 12;
+
+    console.log(
+      `[attract] _getAttractMeasurements: viewportH=${viewportH}, largeFontSize=${largeFontSize.toFixed(
+        1,
+      )}, initialScale=${initialScale.toFixed(3)}, containerScale=${containerScale}, copiesPerBand=${copiesPerBand}`,
+    );
+    this.attractMeasurementsCache = {
+      largeFontSize,
+      initialScale,
+      containerScale,
+      copiesPerBand,
+    };
+    return this.attractMeasurementsCache;
+  }
+
   startAttractScroll() {
     try {
     const bands = document.getElementById('attract-bands');
     if (!bands) { console.error('[attract] startAttractScroll: #attract-bands not found'); return; }
 
     const allConfigs = [...this.attractBandConfigs, ...this.attractExtraBandConfigs];
-    const totalH = bands.getBoundingClientRect().height;
-    console.log(`[attract] startAttractScroll: totalH=${totalH}, classes="${bands.className}"`);
-    if (totalH === 0) { console.error('[attract] startAttractScroll: totalH is 0, aborting'); return; }
 
-    // Phase 3 uses container scale(4) on .attract-bands so the top 3 of 12 equal
-    // bands visually fill the screen.  Font-size is set to the Phase 4 DOM value
-    // (totalH/12 × 0.9); container scale makes it appear 4× larger in Phase 3.
-    //   visual Phase 3 font = containerScale × largeFontSize = (totalH/3) × 0.9 ✓
-    const containerScale = 4; // 12 total bands / 3 visible in Phase 3
-    const largeFontSize = totalH / 12 * 0.9;
-
-    // Capture current (Phase 2) visual font size BEFORE we override anything.
-    // initialScale compensates for container scale so Phase 2→3 grow animation
-    // starts at the Phase 2 visual size:
-    //   visual_start = containerScale × initialScale × largeFontSize = currentSmallFontSize
-    //   → initialScale = currentSmallFontSize / (largeFontSize × containerScale)
-    //                   = currentSmallFontSize / (totalH/3 × 0.9)   (same formula as before)
-    const firstSeed = document.getElementById(allConfigs[0].id)?.querySelector('.attract-item');
-    const currentSmallFontSize = firstSeed ? parseFloat(getComputedStyle(firstSeed).fontSize) : 32;
-    const initialScale = currentSmallFontSize / (largeFontSize * containerScale);
-    console.log(`[attract] startAttractScroll: largeFontSize=${largeFontSize.toFixed(1)}, currentSmallFontSize=${currentSmallFontSize}, initialScale=${initialScale.toFixed(3)}, containerScale=${containerScale}`);
-
-    // 1. Measure seed item widths at the LARGE font size.
-    //    Temporarily set font-size on seeds to get accurate widths.
-    const seeds = allConfigs.map(({ id }) => {
-      const track = document.getElementById(id);
-      const seed = track?.querySelector('.attract-item');
-      if (seed) seed.style.fontSize = `${largeFontSize}px`;
-      return { track, seed };
-    });
-    void bands.offsetHeight; // flush font-size change for accurate measurement
-
-    const measurements = seeds.map(({ track, seed }) => ({
-      itemW: seed?.getBoundingClientRect().width ?? 0,
-      bandW: track?.closest('.attract-band')?.getBoundingClientRect().width ?? 1080,
-    }));
+    const m = this._getAttractMeasurements();
+    if (!m) { console.error('[attract] startAttractScroll: measurements unavailable, aborting'); return; }
+    const { largeFontSize, initialScale, containerScale, copiesPerBand } = m;
+    console.log(`[attract] startAttractScroll: classes="${bands.className}"`);
+    console.log(`[attract] startAttractScroll: largeFontSize=${largeFontSize.toFixed(1)}, initialScale=${initialScale.toFixed(3)}, containerScale=${containerScale}, copiesPerBand=${copiesPerBand}`);
 
     // 2. Build each track with copies at large font size, wrap in scaler, start scrolling.
     //    originalScalers: rows 0-2 — get WAAPI grow animation (initialScale → 1).
@@ -510,14 +582,8 @@ class UIController {
       const track = document.getElementById(id);
       if (!track) { console.error(`[attract] startAttractScroll: track #${id} not found`); return; }
 
-      const { itemW, bandW } = measurements[i];
-      if (!itemW) { console.error(`[attract] startAttractScroll: band ${i} (#${id}) itemW=0, skipping`); return; }
-
-      // Each half of the -50% loop needs to span at least the viewport width.
-      const copies = Math.max(4, Math.ceil((bandW * 1.5) / itemW) + 2);
-
       track.innerHTML = '';
-      for (let j = 0; j < copies * 2; j++) {
+      for (let j = 0; j < copiesPerBand * 2; j++) {
         const s = document.createElement('span');
         s.className = 'attract-item';
         s.style.fontSize = `${largeFontSize}px`;
@@ -643,12 +709,41 @@ class UIController {
     console.log(`[attract] showAttractPhase4: done, bands.className="${bands.className}"`);
   }
 
+  /**
+   * Bind the video `ended` handler exactly once.
+   * On each playback end: hold on frame 0 for `attractVideoHoldMs`, hide the
+   * leaderboard (exit animation), then replay and restart the attract cycle.
+   */
+  _bindVideoAttractEnded() {
+    if (this._videoAttractEndedBound) return;
+    const video = document.querySelector('.attract-video-bg');
+    if (!video) return;
+    this._videoAttractEndedBound = true;
+
+    video.addEventListener('ended', () => {
+      if (!window.useVideoAttract) return;
+      // Pause on frame 0 — visible "hold" while leaderboard exits.
+      video.currentTime = 0;
+      video.pause();
+      // Trigger leaderboard exit animation immediately.
+      this.setDemoLeaderboardVisible(false);
+      console.log(`[attract] video ended — holding ${this.attractVideoHoldMs}ms then replaying`);
+      // After the hold, play video and kick off a fresh cycle (lb show timer).
+      const t = setTimeout(() => {
+        if (!window.useVideoAttract) return;
+        video.play().catch(() => {});
+        this.startAttractCycle();
+      }, this.attractVideoHoldMs);
+      this.attractTimers.push(t);
+    });
+  }
+
   /** Start the multi-step attract cycle. */
   startAttractCycle() {
     this._cycleId = ((this._cycleId ?? 0) + 1);
     console.log(`[attract] Cycle ${this._cycleId} start`);
     this.stopAttractCycle();
-    this.resetAttractPhase();
+    this.resetAttractPhase(); // no-ops in video/disabled mode
     this.setDemoLeaderboardVisible(false);
 
     const cycleId = this._cycleId;
@@ -657,44 +752,70 @@ class UIController {
       this.attractTimers.push(t);
     };
 
-    const bands = document.getElementById('attract-bands');
+    // Video mode: bind ended handler (once) and play from the beginning.
+    if (window.useVideoAttract) {
+      this._bindVideoAttractEnded();
+      const video = document.querySelector('.attract-video-bg');
+      if (video) {
+        video.currentTime = 0;
+        video.play().catch(() => {});
+      }
+    }
 
-    // Phase 1 – magenta slides up
-    at(this.attractReveal1Ms, () => {
-      console.log(`[attract] Cycle ${cycleId} – Phase 1`);
-      if (bands) bands.classList.add('attract-phase-1');
-    });
+    // Run DOM band animation phases only when not in video/disabled mode.
+    if (!window.useVideoAttract && !window.disableDomAttractBands) {
+      const bands = document.getElementById('attract-bands');
 
-    // Phase 2 – lime slides up
-    at(this.attractReveal2Ms, () => {
-      console.log(`[attract] Cycle ${cycleId} – Phase 2`);
-      if (bands) bands.classList.add('attract-phase-2');
-    });
+      // Phase 1 – magenta slides up
+      at(this.attractReveal1Ms, () => {
+        console.log(`[attract] Cycle ${cycleId} – Phase 1`);
+        if (bands) bands.classList.add('attract-phase-1');
+      });
 
-    // Phase 3 – text grows AND scrolls simultaneously
-    at(this.attractGrowMs, () => {
-      console.log(`[attract] Cycle ${cycleId} – Phase 3 (startAttractScroll)`);
-      this.startAttractScroll();
-    });
+      // Phase 2 – lime slides up
+      at(this.attractReveal2Ms, () => {
+        console.log(`[attract] Cycle ${cycleId} – Phase 2`);
+        if (bands) bands.classList.add('attract-phase-2');
+      });
 
-    // Phase 4 – zoom-out: bands compress to 1/12 height, extra rows rise into view
-    at(this.attractGridMs, () => {
-      console.log(`[attract] Cycle ${cycleId} – Phase 4 (showAttractPhase4)`);
-      this.showAttractPhase4();
-    });
+      // Phase 3 – text grows AND scrolls simultaneously
+      at(this.attractGrowMs, () => {
+        console.log(`[attract] Cycle ${cycleId} – Phase 3 (startAttractScroll)`);
+        this.startAttractScroll();
+      });
 
-    // Leaderboard slides up over grid
-    at(this.attractLbShowMs, () => {
-      console.log(`[attract] Cycle ${cycleId} – Leaderboard show`);
-      this.setDemoLeaderboardVisible(true);
-    });
+      // Phase 4 – zoom-out: bands compress to 1/12 height, extra rows rise into view
+      at(this.attractGridMs, () => {
+        console.log(`[attract] Cycle ${cycleId} – Phase 4 (showAttractPhase4)`);
+        this.showAttractPhase4();
+      });
+    }
 
-    // Leaderboard hides → restart cycle
-    at(this.attractLbHideMs, () => {
-      console.log(`[attract] Cycle ${cycleId} – Leaderboard hide, restarting`);
-      this.setDemoLeaderboardVisible(false);
-      this.startAttractCycle();
-    });
+    // Leaderboard show timer — all modes except recording.
+    if (!window.isRecordingMode) {
+      at(this.attractLbShowMs, () => {
+        console.log(`[attract] Cycle ${cycleId} – Leaderboard show`);
+        this.setDemoLeaderboardVisible(true);
+      });
+
+      // DOM mode only: timer-driven hide + restart.
+      // Video mode: leaderboard hide + restart are driven by video.ended above.
+      if (!window.useVideoAttract) {
+        at(this.attractLbHideMs, () => {
+          console.log(`[attract] Cycle ${cycleId} – Leaderboard hide, restarting`);
+          this.setDemoLeaderboardVisible(false);
+          this.startAttractCycle();
+        });
+      }
+    } else {
+      // Recording mode: no leaderboard overlay; timer-driven restart (DOM only).
+      if (!window.useVideoAttract) {
+        at(this.attractLbHideMs, () => {
+          console.log(`[attract] Cycle ${cycleId} – restart (recording mode, no leaderboard)`);
+          this.startAttractCycle();
+        });
+      }
+    }
   }
 
   stopAttractCycle() {
@@ -889,7 +1010,7 @@ class UIController {
         const row = document.createElement('div');
         row.className = 'leaderboard-entry player-highlight';
         row.innerHTML = `
-          <span>${playerSummary.placement ? '#' + playerSummary.placement.rank : '-'}</span>
+          <span>${playerSummary.placement ? playerSummary.placement.rank : '-'}</span>
           <span class="leaderboard-name">${this.toDisplayName(playerSummary.playerData.name || 'YOU')}</span>
           <span class="leaderboard-score">${playerSummary.playerData.totalScore || 0}${includePtsSuffix ? 'PTS' : ''}</span>
         `;
@@ -928,7 +1049,7 @@ class UIController {
         const playerRow = document.createElement('div');
         playerRow.className = 'leaderboard-entry player-highlight';
         playerRow.innerHTML = `
-          <span>${playerSummary.placement ? '#' + playerSummary.placement.rank : '-'}</span>
+          <span>${playerSummary.placement ? playerSummary.placement.rank : '-'}</span>
           <span class="leaderboard-name">${this.toDisplayName(playerSummary.playerData.name || 'YOU')}</span>
           <span class="leaderboard-score">${playerSummary.playerData.totalScore || 0}${includePtsSuffix ? 'PTS' : ''}</span>
         `;
@@ -953,7 +1074,7 @@ class UIController {
       const playerRow = document.createElement('div');
       playerRow.className = 'leaderboard-entry player-highlight';
       playerRow.innerHTML = `
-        <span>${playerSummary.placement ? '#' + playerSummary.placement.rank : '-'}</span>
+        <span>${playerSummary.placement ? playerSummary.placement.rank : '-'}</span>
         <span class="leaderboard-name">${this.toDisplayName(playerSummary.playerData.name || 'YOU')}</span>
         <span class="leaderboard-score">${playerSummary.playerData.totalScore || 0}${includePtsSuffix ? 'PTS' : ''}</span>
       `;
@@ -1304,18 +1425,24 @@ class UIController {
 
   resetLeadFormBands() {
     const ids = ['lead-info-banner', 'lead-band-firstname', 'lead-band-lastname',
-      'lead-form-lower', 'touch-keyboard', 'lead-actions'];
+      'touch-keyboard', 'lead-form-lower'];
     ids.forEach((id) => {
       const el = document.getElementById(id);
       if (!el) return;
       el.style.transition = 'none';
       el.style.transform = 'translateX(100%)';
     });
+
+    const actions = document.getElementById('lead-actions');
+    if (actions) {
+      actions.style.transition = '';
+      actions.style.transform = '';
+    }
   }
 
   animateLeadFormIn() {
     const ids = ['lead-info-banner', 'lead-band-firstname', 'lead-band-lastname',
-      'lead-form-lower', 'touch-keyboard', 'lead-actions'];
+      'touch-keyboard', 'lead-form-lower'];
     const stagger = 70; // ms between each element
     const duration = 320;
     ids.forEach((id, i) => {
