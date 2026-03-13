@@ -1,6 +1,9 @@
 /** Main application entry point (touch display mode). */
 
 document.addEventListener('DOMContentLoaded', () => {
+  const runtimeConfig = (typeof window !== 'undefined' && window.CONFIG)
+    || (typeof CONFIG !== 'undefined' ? CONFIG : null)
+    || {};
   const params = new URLSearchParams(window.location.search);
   window.isRecordingMode = params.get('record') === '1';
   if (window.isRecordingMode && document.body) {
@@ -11,8 +14,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const videoParam = params.get('video');
   const useVideoAttract = videoParam !== null
     ? videoParam === '1'
-    : !!(window.CONFIG && window.CONFIG.ui && window.CONFIG.ui.useVideoAttract);
-  const disableDomAttractBands = !!(window.CONFIG && window.CONFIG.ui && window.CONFIG.ui.disableDomAttractBands);
+    : !!(runtimeConfig && runtimeConfig.ui && runtimeConfig.ui.useVideoAttract);
+  const disableDomAttractBands = !!(runtimeConfig && runtimeConfig.ui && runtimeConfig.ui.disableDomAttractBands);
 
   window.useVideoAttract = useVideoAttract;
   window.disableDomAttractBands = disableDomAttractBands;
@@ -147,18 +150,11 @@ function setupEventHandlers() {
       const now = Date.now();
       if (now - lastPressTs < 280) return;
       lastPressTs = now;
-      if (event && typeof event.preventDefault === 'function' && event.cancelable) {
-        event.preventDefault();
-      }
+      event.preventDefault();
       handler(event);
     };
 
     element.addEventListener('pointerdown', run);
-    element.addEventListener('click', run);
-    element.addEventListener('keydown', (event) => {
-      if (event.key !== 'Enter' && event.key !== ' ') return;
-      run(event);
-    });
   };
 
   const demoStartBtn = document.getElementById('demo-start-btn');
@@ -180,30 +176,43 @@ function setupEventHandlers() {
   });
 
   const leadSubmitBtn = document.getElementById('lead-submit-btn');
-  const leadBackBtn = document.getElementById('lead-back-btn');
 
-  bindPress(leadBackBtn, () => {
-    if (window.game) {
-      window.game.setState(window.GameState.SHOW_SCORE, { direction: 'back' });
+  const goToLeaderboardWithoutPlayer = () => {
+    leadFormSkipPressesRemaining = null;
+    const cachedRemoteLeaderboard = window.game.getCachedRemoteLeaderboard(1000);
+    window.game.setState(window.GameState.SHOW_LEADERBOARD);
+    if (cachedRemoteLeaderboard.length > 0) {
+      window.ui.showLeaderboard(cachedRemoteLeaderboard, '', null);
+    } else {
+      window.ui.showLeaderboardLoading();
     }
-  });
+    window.game.startLeaderboardCountdown();
+    window.game.handleUserAction();
 
-  bindPress(leadSubmitBtn, async () => {
+    window.game.refreshRemoteLeaderboardInBackground(1000).then((remoteLeaderboard) => {
+      const stillOnLeaderboard = window.game
+        && window.game.state === window.GameState.SHOW_LEADERBOARD;
+      if (!stillOnLeaderboard) return;
+      if (remoteLeaderboard && remoteLeaderboard.length > 0) {
+        window.ui.showLeaderboard(remoteLeaderboard, '', null);
+      } else if (cachedRemoteLeaderboard.length === 0) {
+        window.ui.showLeaderboardError('NO SCORES YET');
+      }
+    });
+  };
+
+  bindPress(leadSubmitBtn, () => {
     if (!window.game || !window.ui) return;
+    if (window.game.state !== window.GameState.LEAD_FORM) return;
     if (leadSubmitInFlight) return;
 
     const data = window.ui.getLeadFormData();
     const firstNameEmpty = !data.firstName;
     const lastNameEmpty = !data.lastName;
-    if (firstNameEmpty || lastNameEmpty) {
-      if (!(firstNameEmpty && lastNameEmpty)) {
-        leadFormSkipPressesRemaining = null;
-        window.ui.showLeadFormError('Please enter your first and last name.');
-        return;
-      }
 
+    if (firstNameEmpty && lastNameEmpty) {
       if (leadFormSkipPressesRemaining === null) {
-        leadFormSkipPressesRemaining = 4;
+        leadFormSkipPressesRemaining = 3;
       } else {
         leadFormSkipPressesRemaining = Math.max(leadFormSkipPressesRemaining - 1, 0);
       }
@@ -214,31 +223,13 @@ function setupEventHandlers() {
         return;
       }
 
+      goToLeaderboardWithoutPlayer();
+      return;
+    }
+
+    if (firstNameEmpty || lastNameEmpty) {
       leadFormSkipPressesRemaining = null;
-      const cachedRemoteLeaderboard = window.game.getCachedRemoteLeaderboard(1000);
-      window.game.setState(window.GameState.SHOW_LEADERBOARD);
-      if (cachedRemoteLeaderboard.length > 0) {
-        window.ui.showLeaderboard(cachedRemoteLeaderboard, '', null);
-      } else {
-        window.ui.showLeaderboardLoading();
-      }
-      window.game.startLeaderboardCountdown();
-      window.game.handleUserAction();
-
-      window.game.refreshRemoteLeaderboardInBackground(1000).then((remoteLeaderboard) => {
-        const stillShowingLeaderboard = window.game
-          && window.game.state === window.GameState.SHOW_LEADERBOARD;
-        if (!stillShowingLeaderboard) return;
-
-        if (remoteLeaderboard && remoteLeaderboard.length > 0) {
-          window.ui.showLeaderboard(remoteLeaderboard, '', null);
-          return;
-        }
-
-        if (cachedRemoteLeaderboard.length === 0) {
-          window.ui.showLeaderboardError('NO SCORES YET');
-        }
-      });
+      window.ui.showLeadFormError('Please enter your first and last name.');
       return;
     }
 
@@ -277,21 +268,21 @@ function setupEventHandlers() {
       });
 
       window.game.refreshRemoteLeaderboardInBackground(1000).then((remoteLeaderboard) => {
-        const stillShowingLeaderboard = window.game
+        const stillOnLeaderboard = window.game
           && window.game.state === window.GameState.SHOW_LEADERBOARD;
-        if (!stillShowingLeaderboard) return;
+        if (!stillOnLeaderboard) return;
 
         playerSummary.pendingSync = window.game.isScorePending(playerData.scoreId);
         if (remoteLeaderboard && remoteLeaderboard.length > 0) {
           playerSummary.placement = window.game.getPlayerPlacementAgainstLeaderboard(playerData, remoteLeaderboard);
           window.ui.showLeaderboard(remoteLeaderboard, fullName, playerSummary);
-          return;
-        }
-
-        if (cachedRemoteLeaderboard.length === 0) {
+        } else if (cachedRemoteLeaderboard.length === 0) {
           window.ui.showLeaderboardError('NO SCORES YET');
         }
       });
+    } catch (error) {
+      console.error('[lead-submit] Failed to submit score:', error);
+      goToLeaderboardWithoutPlayer();
     } finally {
       leadSubmitInFlight = false;
     }

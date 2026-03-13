@@ -2,7 +2,10 @@
 
 class UIController {
   constructor() {
-    const ambientScrollConfig = (window.CONFIG && window.CONFIG.ui && window.CONFIG.ui.ambientLeaderboardScroll) || {};
+    const runtimeConfig = (typeof window !== 'undefined' && window.CONFIG)
+      || (typeof CONFIG !== 'undefined' ? CONFIG : null)
+      || {};
+    const ambientScrollConfig = (runtimeConfig.ui && runtimeConfig.ui.ambientLeaderboardScroll) || {};
     const parsedSpeedPxPerSecond = Number(ambientScrollConfig.speedPxPerSecond);
     const parsedTickMs = Number(ambientScrollConfig.tickMs);
     const parsedStepPxPerTick = Number(ambientScrollConfig.stepPxPerTick);
@@ -30,6 +33,7 @@ class UIController {
       : 3500;
     this.leaderboardAutoScrollRafId = null;
     this.leaderboardAutoScrollLastFrameTs = null;
+    this.leaderboardAutoScrollDebugLastLogTs = 0;
     this.leaderboardAutoScrollDirectionByList = {};
     this.leaderboardAutoScrollPositionByList = {};
     this.lastTimeValue = null;
@@ -47,7 +51,8 @@ class UIController {
     this.attractGridMs       = 9500;   // Phase 4: zoom-out (all 12 bands)
     this.attractLbShowMs     = 14000;  // Leaderboard slides up
     this.attractLbHideMs     = 24000;  // Leaderboard hides → restart cycle (DOM mode)
-    this.attractVideoHoldMs  = 4000;   // Video mode: ms to hold on first frame before replaying
+    const uiConfig = runtimeConfig.ui || {};
+    this.attractVideoHoldMs  = Number.isFinite(uiConfig.attractVideoHoldMs) ? uiConfig.attractVideoHoldMs : 4000;
 
     // ── Marquee speed multiplier (applies to BOTH Phase 3 and Phase 4) ──
     // Multiplies each band's "speed" value to control scroll velocity.
@@ -350,6 +355,11 @@ class UIController {
         this.leaderboardAutoScrollLastFrameTs = timestampMs;
         return;
       }
+      // Demo ambient scroll should only run while the demo leaderboard panel is visible.
+      if (this.currentScreen === 'demo' && !this.attractLbVisible) {
+        this.leaderboardAutoScrollLastFrameTs = timestampMs;
+        return;
+      }
       if (list.scrollHeight <= list.clientHeight + 2) {
         this.leaderboardAutoScrollLastFrameTs = timestampMs;
         return;
@@ -384,10 +394,18 @@ class UIController {
       const clampedTop = Math.max(0, Math.min(maxScrollTop, nextTop));
       this.leaderboardAutoScrollPositionByList[listKey] = clampedTop;
       list.scrollTop = clampedTop;
+      if (timestampMs - this.leaderboardAutoScrollDebugLastLogTs >= 250) {
+        this.leaderboardAutoScrollDebugLastLogTs = timestampMs;
+        const signedSpeed = this.leaderboardAutoScrollSpeedPxPerSecond * direction;
+        console.log(
+          `[ambient-scroll] list=${listKey} speed=${signedSpeed.toFixed(1)}px/s scrollTop=${clampedTop.toFixed(1)} max=${maxScrollTop.toFixed(1)}`
+        );
+      }
       this.updateBackTopButtonVisibility();
     };
 
     this.leaderboardAutoScrollLastFrameTs = null;
+    this.leaderboardAutoScrollDebugLastLogTs = 0;
     this.leaderboardAutoScrollRafId = window.requestAnimationFrame(tick);
   }
 
@@ -397,6 +415,7 @@ class UIController {
       this.leaderboardAutoScrollRafId = null;
     }
     this.leaderboardAutoScrollLastFrameTs = null;
+    this.leaderboardAutoScrollDebugLastLogTs = 0;
   }
 
   setupLedResizeHandler() {
@@ -1098,7 +1117,7 @@ class UIController {
 
     rowEls.forEach(r => listEl.appendChild(r));
 
-    if (listEl.id === 'demo-leaderboard-list') {
+    if (listEl.id === 'demo-leaderboard-list' || listEl.id === 'leaderboard-list') {
       requestAnimationFrame(() => this.shrinkLeaderboardNamesToFit(listEl));
     }
 
@@ -1129,7 +1148,7 @@ class UIController {
     const listEl = document.getElementById('leaderboard-list');
     if (!listEl) return;
 
-    this.renderLeaderboardRows(listEl, leaderboard, playerSummary, true);
+    this.renderLeaderboardRows(listEl, leaderboard, playerSummary, false);
 
     const highlightRow = listEl.querySelector('.player-highlight');
     if (highlightRow) {
