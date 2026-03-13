@@ -12,21 +12,21 @@
 
 @font-face {
   font-family: 'SFT Schrifted Sans';
-  src: url('../fonts/SFT Scrifted/SFTSchriftedSans-Black.otf') format('opentype');
+  src: url('../assets/fonts/SFTSchriftedSans-Black.otf') format('opentype');
   font-weight: 900;
   font-display: swap;
 }
 
 @font-face {
   font-family: 'SFT Schrifted Sans';
-  src: url('../fonts/SFT Scrifted/SFTSchriftedSans-Bold.otf') format('opentype');
+  src: url('../assets/fonts/SFTSchriftedSans-Bold.otf') format('opentype');
   font-weight: 700;
   font-display: swap;
 }
 
 @font-face {
   font-family: 'SFT Schrifted Sans';
-  src: url('../fonts/SFT Scrifted/SFTSchriftedSans-Regular.otf') format('opentype');
+  src: url('../assets/fonts/SFTSchriftedSans-Regular.otf') format('opentype');
   font-weight: 400;
   font-display: swap;
 }
