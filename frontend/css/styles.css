@@ -373,7 +373,7 @@ body {
 }
 
 .leaderboard-list {
-  width: 100%
+  width: 100%;
   background: rgba(246, 246, 247, 0.52);
   border-radius: 0;
   overflow-y: auto;
