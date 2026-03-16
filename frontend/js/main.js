@@ -15,7 +15,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const useVideoAttract = videoParam !== null
     ? videoParam === '1'
     : !!(runtimeConfig && runtimeConfig.ui && runtimeConfig.ui.useVideoAttract);
-  const disableDomAttractBands = !!(runtimeConfig && runtimeConfig.ui && runtimeConfig.ui.disableDomAttractBands);
+  const configDisableDomAttractBands = !!(runtimeConfig && runtimeConfig.ui && runtimeConfig.ui.disableDomAttractBands);
+  const disableDomAttractBands = useVideoAttract || configDisableDomAttractBands;
 
   window.useVideoAttract = useVideoAttract;
   window.disableDomAttractBands = disableDomAttractBands;
@@ -28,14 +29,19 @@ document.addEventListener('DOMContentLoaded', () => {
   window.setAttractVideoMode = (enabled) => {
     const next = !!enabled;
     window.useVideoAttract = next;
+    if (next) {
+      window.disableDomAttractBands = true;
+    } else {
+      window.disableDomAttractBands = configDisableDomAttractBands;
+    }
     if (document.body) {
       document.body.classList.toggle('use-video-attract', next);
+      document.body.classList.toggle('no-dom-attract', window.disableDomAttractBands);
     }
-    // Restart the cycle so it picks up the new mode (video vs DOM bands).
     if (window.ui && window.game && window.game.state === window.GameState.DEMO && window.ui.currentScreen === 'demo') {
       window.ui.startAttractCycle();
     }
-    console.log(`[attract] video mode: ${next ? 'ON' : 'OFF'}`);
+    console.log(`[attract] video mode: ${next ? 'ON' : 'OFF'} (DOM bands: ${window.disableDomAttractBands ? 'OFF' : 'ON'})`);
   };
 
   window.setDomAttractEnabled = (enabled) => {
