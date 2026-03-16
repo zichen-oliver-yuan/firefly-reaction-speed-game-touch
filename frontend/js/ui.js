@@ -1664,22 +1664,7 @@ class UIController {
       return;
     }
 
-    // Create tip on first call — slides in from the right with the "3" overlay
-    if (!document.getElementById("countdown-tip-overlay")) {
-      const tip = document.createElement("p");
-      tip.id = "countdown-tip-overlay";
-      tip.className = "countdown-tip-overlay";
-      tip.textContent =
-        "tip: press the green squares as fast as you can and avoid the pink ones.";
-      tip.style.transform = "translateX(100%)";
-      document.body.appendChild(tip);
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          tip.style.transition = "transform 0.4s ease-out";
-          tip.style.transform = "translateX(0)";
-        });
-      });
-    }
+    // Countdown tip disabled
 
     // New number slides in from the right; previous overlay stays as the background
     const overlay = document.createElement("div");
