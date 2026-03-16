@@ -12,13 +12,13 @@ const CONFIG = {
 
   // ─── UI / Attract mode ──────────────────────────────────────────────────────
   ui: {
-    // When true, the demo screen uses a pre-rendered video (`assets/attract-loop.mov`)
+    // When true, the demo screen uses a pre-rendered video (`assets/attract-loop.mp4`)
     // as the background instead of the DOM-based attract bands animation.
-    useVideoAttract: false,
+    useVideoAttract: true,
     // When true, completely hide the DOM attract bands (`#attract-bands`) even if
     // video is disabled. This is useful if you only ever want the static demo shell
     // without the animated bands.
-    disableDomAttractBands: false,
+    disableDomAttractBands: true,
     // Ms to hold on the first frame between video loop replays (video attract mode).
     attractVideoHoldMs: 2000,
     // Ambient leaderboard scrolling (primarily used on the demo screen).
@@ -66,7 +66,9 @@ const CONFIG = {
     maxReactionTime: 0.8, // clamp ceiling (used for misses)
 
     // ─── Red trap button ─────────────────────────────────────────────────────
-    redButtonProbability: 0.18, // 0–1 chance each spawn is a red trap (18%)
+    redButtonsPerSession: 8, // fixed number of red traps per game session
+    redButtonMinSpacing: 4, // minimum green spawns between reds
+    redButtonMaxSpacing: 8, // maximum green spawns between reds
 
     // ─── Input ───────────────────────────────────────────────────────────────
     gridPressCooldownMs: 120, // ignore duplicate taps within this window (ms)

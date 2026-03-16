@@ -60,8 +60,8 @@ class UIController {
     this.attractReveal2Ms = 2500; // Phase 2: lime slides up
     this.attractGrowMs = 3800; // Phase 3: text grows + scrolls simultaneously
     this.attractGridMs = 9500; // Phase 4: zoom-out (all 12 bands)
-    this.attractLbShowMs = 14000; // Leaderboard slides up
-    this.attractLbHideMs = 24000; // Leaderboard hides → restart cycle (DOM mode)
+    this.attractLbShowMs = 18000; // Leaderboard slides up
+    this.attractLbHideMs = 30000; // Leaderboard hides → restart cycle (DOM mode)
     const uiConfig = runtimeConfig.ui || {};
     this.attractVideoHoldMs = Number.isFinite(uiConfig.attractVideoHoldMs)
       ? uiConfig.attractVideoHoldMs
@@ -80,22 +80,22 @@ class UIController {
 
     // Original 3 bands (fill screen in Phase 3, shrink to 1/12 in Phase 4)
     this.attractBandConfigs = [
-      { id: "attract-track-0", text: "PLAY TO WIN!", dir: "ltr", speed: 7 },
-      { id: "attract-track-1", text: "$1,000", dir: "rtl", speed: 5 },
-      { id: "attract-track-2", text: "CASH", dir: "ltr", speed: 9 },
+      { id: "attract-track-0", text: "PLAY TO WIN!", dir: "ltr", speed: 15 },
+      { id: "attract-track-1", text: "$1,000", dir: "rtl", speed: 12 },
+      { id: "attract-track-2", text: "CASH", dir: "ltr", speed: 20 },
     ];
 
     // Extra 9 bands (tiny slivers below fold in Phase 3, grow to 1/12 in Phase 4)
     this.attractExtraBandConfigs = [
-      { id: "attract-track-3", text: "PLAY TO WIN!", dir: "rtl", speed: 6 },
-      { id: "attract-track-4", text: "$1,000", dir: "ltr", speed: 8 },
-      { id: "attract-track-5", text: "CASH", dir: "rtl", speed: 4.5 },
-      { id: "attract-track-6", text: "PLAY TO WIN!", dir: "ltr", speed: 7 },
-      { id: "attract-track-7", text: "$1,000", dir: "rtl", speed: 5 },
-      { id: "attract-track-8", text: "CASH", dir: "ltr", speed: 9 },
-      { id: "attract-track-9", text: "PLAY TO WIN!", dir: "rtl", speed: 6 },
-      { id: "attract-track-10", text: "$1,000", dir: "ltr", speed: 8 },
-      { id: "attract-track-11", text: "CASH", dir: "rtl", speed: 4.5 },
+      { id: "attract-track-3", text: "PLAY TO WIN!", dir: "rtl", speed: 15 },
+      { id: "attract-track-4", text: "$1,000", dir: "ltr", speed: 12 },
+      { id: "attract-track-5", text: "CASH", dir: "rtl", speed: 20 },
+      { id: "attract-track-6", text: "PLAY TO WIN!", dir: "ltr", speed: 15 },
+      { id: "attract-track-7", text: "$1,000", dir: "rtl", speed: 12 },
+      { id: "attract-track-8", text: "CASH", dir: "ltr", speed: 20 },
+      { id: "attract-track-9", text: "PLAY TO WIN!", dir: "rtl", speed: 15 },
+      { id: "attract-track-10", text: "$1,000", dir: "ltr", speed: 12 },
+      { id: "attract-track-11", text: "CASH", dir: "rtl", speed: 20 },
     ];
 
     this.initializeCountdownGrid();
@@ -123,7 +123,6 @@ class UIController {
         this.startAttractCycle();
         break;
       case "countdown":
-        this.showScreen("countdown", nav.direction);
         this.stopAttractCycle();
         break;
       case "game_start":
@@ -137,18 +136,8 @@ class UIController {
       case "game_end":
         break;
       case "lead_form":
-        this.hideAllScreens();
-        {
-          const leadScreen = document.getElementById("screen-lead-form");
-          if (leadScreen) {
-            leadScreen.classList.remove("hidden");
-            this.currentScreen = "lead-form";
-            this.currentScreenEl = leadScreen;
-          }
-        }
         this.clearLeadFormError();
-        this.resetLeadFormBands();
-        requestAnimationFrame(() => this.animateLeadFormIn());
+        this.showLeadFormWithOverlay();
         break;
       case "show_leaderboard":
         this.showScreen("leaderboard", nav.direction);
@@ -580,11 +569,14 @@ class UIController {
 
     // Rebuild each original track with a single seed item (small font-size)
     this.attractBandConfigs.forEach(({ id, text }) => resetTrack(id, text));
-    // Reset extra band tracks to a single seed item and re-show any hidden bands
+    // Reset extra band tracks to a single seed item and clear Phase 3 inline styles
     this.attractExtraBandConfigs.forEach(({ id, text }) => {
       resetTrack(id, text);
       const band = document.getElementById(id)?.closest(".attract-band");
-      if (band) band.style.display = "";
+      if (band) {
+        band.style.display = "";
+        band.style.contentVisibility = "";
+      }
     });
   }
 
@@ -614,54 +606,37 @@ class UIController {
     const viewportW =
       window.innerWidth || document.documentElement?.clientWidth || 1080;
 
-    // Adaptive band count: at 4K the container scale(4) creates a ~15,360px
-    // composited layer that overwhelms the GPU.  Use fewer total bands on large
-    // screens so the container scale is lower and the compositor budget is sane.
-    //   totalBands must be a multiple of 3 (the original visible band count).
-    //   containerScale = totalBands / 3.
+    // Adaptive band count: totalBands controls how many rows appear in the Phase 4 grid.
+    // scalerScale = totalBands / 3 is now applied to individual original-band scalers
+    // (NOT the container) — this keeps totalBands and the GPU compositor budget decoupled.
+    // On 4K we still reduce totalBands so each scaler layer stays manageable.
     const totalPx = viewportW * viewportH;
     let totalBands;
     if (totalPx > 6_000_000) {
-      // ~4K (2160×3840 = 8.3M) → 6 bands, scale 2 → virtual 7,680px
+      // ~4K → 6 bands, scalerScale 2
       totalBands = 6;
     } else if (totalPx > 3_000_000) {
-      // ~1440p → 9 bands, scale 3
+      // ~1440p → 9 bands, scalerScale 3
       totalBands = 9;
     } else {
-      // laptops / 1080p → 12 bands, scale 4 (original)
+      // 1080p → 12 bands, scalerScale 4
       totalBands = 12;
     }
-    const containerScale = totalBands / 3;
-    const extraBandCount = totalBands - 3; // how many extra bands to activate
+    // scalerScale: applied to each original .attract-track-scaler in Phase 3 (not the container).
+    // Phase 3 visual: fontSizeSmall × scalerScale = visually large text filling the band.
+    const containerScale = totalBands / 3; // kept as containerScale for minimal rename churn
+    const extraBandCount = totalBands - 3;
 
-    const largeFontSize = (viewportH / totalBands) * 0.9;
-
-    // Fixed initial scale chosen to visually match the previous grow effect.
-    const initialScale = 0.3;
-
-    // Adaptive copy count per band: fewer copies at higher resolutions since
-    // the text is already very large and tracks are enormous compositor layers.
-    let copiesPerBand;
-    if (totalPx > 6_000_000) {
-      copiesPerBand = 4;
-    } else if (totalPx > 3_000_000) {
-      copiesPerBand = 6;
-    } else {
-      copiesPerBand = 12;
-    }
+    // fontSizeSmall: actual DOM font-size for all items in all bands (Phase 4 size).
+    // In Phase 3 the scaler scale makes originals appear (fontSizeSmall × scalerScale) tall.
+    const largeFontSize = (viewportH / totalBands) * 0.9; // named largeFontSize for compat
 
     console.log(
-      `[attract] _getAttractMeasurements: viewportH=${viewportH}, viewportW=${viewportW}, totalPx=${totalPx}, totalBands=${totalBands}, containerScale=${containerScale}, extraBandCount=${extraBandCount}, largeFontSize=${largeFontSize.toFixed(
-        1
-      )}, initialScale=${initialScale.toFixed(
-        3
-      )}, copiesPerBand=${copiesPerBand}`
+      `[attract] _getAttractMeasurements: viewportH=${viewportH}, viewportW=${viewportW}, totalPx=${totalPx}, totalBands=${totalBands}, scalerScale=${containerScale}, extraBandCount=${extraBandCount}, fontSizeSmall=${largeFontSize.toFixed(1)}`
     );
     this.attractMeasurementsCache = {
       largeFontSize,
-      initialScale,
       containerScale,
-      copiesPerBand,
       totalBands,
       extraBandCount,
     };
@@ -685,9 +660,7 @@ class UIController {
       }
       const {
         largeFontSize,
-        initialScale,
         containerScale,
-        copiesPerBand,
         extraBandCount,
       } = m;
 
@@ -699,17 +672,19 @@ class UIController {
       const allConfigs = [...this.attractBandConfigs, ...activeExtras];
 
       // Hide unused extra bands so they don't participate in flex layout.
+      // Active extras are off-screen during Phase 3 (container scale pushes them below
+      // viewport). content-visibility:hidden tells Chrome to skip painting their content
+      // entirely while they are invisible, saving paint and raster work.
       this.attractExtraBandConfigs.forEach(({ id }, i) => {
         const band = document.getElementById(id)?.closest(".attract-band");
-        if (band) band.style.display = i < extraBandCount ? "" : "none";
+        if (band) {
+          band.style.display = i < extraBandCount ? "" : "none";
+          if (i < extraBandCount) band.style.contentVisibility = "hidden";
+        }
       });
       console.log(`[attract] startAttractScroll: classes="${bands.className}"`);
       console.log(
-        `[attract] startAttractScroll: largeFontSize=${largeFontSize.toFixed(
-          1
-        )}, initialScale=${initialScale.toFixed(
-          3
-        )}, containerScale=${containerScale}, copiesPerBand=${copiesPerBand}`
+        `[attract] startAttractScroll: fontSizeSmall=${largeFontSize.toFixed(1)}, scalerScale=${containerScale}`
       );
 
       // 2. Build each track with copies at large font size, wrap in scaler, start scrolling.
@@ -726,17 +701,30 @@ class UIController {
           return;
         }
 
+        // Seed one item, measure its rendered width, then fill with the minimum
+        // number of copies for a seamless translateX(-50%) loop.
+        // Binding constraint: Phase 4 (container scale=1, full viewport visible).
+        // Need: half-track-width ≥ viewportW  →  copiesNeeded = ceil(viewportW / itemW).
+        const viewportW =
+          window.innerWidth || document.documentElement?.clientWidth || 1920;
         track.innerHTML = "";
-        for (let j = 0; j < copiesPerBand * 2; j++) {
-          const s = document.createElement("span");
-          s.className = "attract-item";
-          s.style.fontSize = `${largeFontSize}px`;
-          s.textContent = text;
-          track.appendChild(s);
-        }
-
         track.style.justifyContent = "flex-start";
         track.style.width = "max-content";
+        const seedItem = document.createElement("span");
+        seedItem.className = "attract-item";
+        seedItem.style.fontSize = `${largeFontSize}px`;
+        seedItem.textContent = text;
+        track.appendChild(seedItem);
+        void seedItem.offsetWidth; // force reflow for accurate measurement
+        const itemW = seedItem.offsetWidth || 1;
+        const minCopies = Math.ceil(viewportW / itemW);
+        const totalItems = Math.max(minCopies * 2, 4); // 2 halves; floor at 4
+        console.log(
+          `[attract] track #${id}: itemW=${itemW}px, minCopies=${minCopies}, totalItems=${totalItems}`
+        );
+        for (let j = 1; j < totalItems; j++) {
+          track.appendChild(seedItem.cloneNode(true));
+        }
 
         // Wrap track in a scaler div (scale on wrapper, translateX marquee on track).
         const band = track.closest(".attract-band");
@@ -744,10 +732,11 @@ class UIController {
         if (!scaler) {
           scaler = document.createElement("div");
           scaler.className = "attract-track-scaler";
-          // Originals: snap to Phase 2 visual size; WAAPI will grow to scale(1).
-          // Extras: pin to scale(1) — they are off-screen (container scale(4) pushes
-          // them below the viewport) so text:band ratio is correct when revealed.
-          scaler.style.scale = isExtra ? "1" : String(initialScale);
+          // All scalers start at scale(1). Originals grow to scale(containerScale) via
+          // WAAPI below; scale(1) matches Phase 2 text size exactly since fontSizeSmall
+          // is the same value as the CSS clamp() in phases 0-2. Extras stay at scale(1)
+          // (flex-grow:0 keeps them zero-height and off-screen until Phase 4).
+          scaler.style.scale = "1";
           band.insertBefore(scaler, track);
           scaler.appendChild(track);
         }
@@ -761,25 +750,14 @@ class UIController {
 
       // 3. Snap to Phase 3 layout without any CSS flex-grow transition.
       //    .attract-band has `transition: flex-grow 0.9s` which, if allowed to run,
-      //    would animate flex-grows from Phase 2 values (~1.05–1.10) while the
-      //    container is at scale(4) — making originals appear ~4/3× viewport height
-      //    and visually breaking Phase 3.  Suppressing it mirrors resetAttractPhase().
-      //    container scale(4) × DOM band height(1/12) = visual band height(1/3) so
-      //    the snap is invisible: bands appear the same size as in Phase 2. ✓
+      //    would animate flex-grows from Phase 2 values (~1.05–1.10) before the
+      //    attract-growing class normalises originals to equal thirds — visually
+      //    harmless but unnecessary. Suppress then re-enable via rAF as before.
       bands.querySelectorAll(".attract-band").forEach((b) => {
         b.style.transition = "none";
       });
-      // Defensive: cancel any lingering container WAAPI before applying Phase 3 scale.
-      // A fill:forwards zoom from a previous cycle could override the inline scale='4',
-      // keeping the container at scale(1) and making all 12 bands visible.
-      const lingeringAnims = bands.getAnimations();
-      if (lingeringAnims.length) {
-        console.warn(
-          `[attract] startAttractScroll: cancelling ${lingeringAnims.length} lingering container animation(s)`
-        );
-        lingeringAnims.forEach((a) => a.cancel());
-      }
-      bands.style.scale = String(containerScale);
+      // Container stays at scale(1) — no container scale in Phase 3.
+      bands.style.scale = "";
       bands.classList.add("attract-growing");
 
       // 4. Force layout — commits all changes as one rendered frame.
@@ -793,29 +771,31 @@ class UIController {
         });
       });
 
-      // 5. WAAPI grow on original bands only — fires immediately, no batching issues,
-      //    works in background tabs. Explicit keyframes guarantee the start value.
-      //    Extra band scalers stay at 1 (already correct) — no WAAPI needed.
+      // 5. WAAPI grow on original scalers only: scale(1 → containerScale).
+      //    scale(1) matches Phase 2 text size (fontSizeSmall = CSS clamp() value).
+      //    Grows to scale(containerScale) so text visually = fontSizeSmall × scalerScale
+      //    = viewportH/3×0.9 (fills the band). fill:'none' + finish handler commits
+      //    the final scale as inline style so the next cycle's scale(1) reset is clean.
+      //    Extra band scalers stay at scale(1) — they are zero-height during Phase 3.
       console.log(
-        `[attract] startAttractScroll: WAAPI grow on ${
-          originalScalers.length
-        } original scalers (initialScale=${initialScale.toFixed(3)})`
+        `[attract] startAttractScroll: WAAPI grow on ${originalScalers.length} original scalers (1 → ${containerScale})`
       );
       originalScalers.forEach((s) => {
         const anim = s.animate(
-          [{ scale: String(initialScale) }, { scale: "1" }],
+          [{ scale: "1" }, { scale: String(containerScale) }],
           {
             duration: 900,
             easing: "cubic-bezier(0.22, 1, 0.36, 1)",
-            fill: "forwards",
+            fill: "none",
           }
         );
         anim.addEventListener("cancel", () =>
           console.warn("[attract] scaler grow animation cancelled")
         );
-        anim.addEventListener("finish", () =>
-          console.log("[attract] scaler grow animation finished")
-        );
+        anim.addEventListener("finish", () => {
+          s.style.scale = String(containerScale);
+          console.log(`[attract] scaler grow finished — pinned at scale(${containerScale})`);
+        });
       });
       console.log(
         `[attract] startAttractScroll: done, bands.className="${bands.className}", bands.style.scale="${bands.style.scale}"`
@@ -844,52 +824,63 @@ class UIController {
     }
 
     const m = this._getAttractMeasurements();
-    const cs = m ? m.containerScale : 4; // fallback to original
+    const cs = m ? m.containerScale : 4; // scalerScale for original bands
     console.log(
-      `[attract] showAttractPhase4: containerScale=${cs}, bands.className="${bands.className}", bands.style.scale="${bands.style.scale}"`
+      `[attract] showAttractPhase4: scalerScale=${cs}, bands.className="${bands.className}"`
     );
 
-    // Cancel any lingering grow WAAPI on individual scalers so they stay at scale(1).
-    bands.querySelectorAll(".attract-track-scaler").forEach((scaler) => {
+    // Pin original scalers at scale(cs) — cancel any in-progress Phase 3 grow WAAPI
+    // (defensive; grow should have finished long before Phase 4 starts at 9500ms).
+    // Extras stay at scale(1) — they were never animated.
+    const originalScalers = Array.from(
+      bands.querySelectorAll(".attract-band:not(.attract-band-extra) .attract-track-scaler")
+    );
+    originalScalers.forEach((scaler) => {
       scaler.getAnimations().forEach((a) => a.cancel());
-      scaler.style.scale = "1";
+      scaler.style.scale = String(cs);
     });
 
-    // Cancel any prior container animation (defensive — shouldn't exist at this point).
-    const priorAnims = bands.getAnimations();
-    if (priorAnims.length)
-      console.warn(
-        `[attract] showAttractPhase4: cancelling ${priorAnims.length} unexpected container animation(s)`
+    // Clear container scale (defensive — container should already be at scale(1)/unset).
+    bands.style.scale = "";
+
+    // Restore painting for extra bands before the flush so Chrome rasters them
+    // in time for the Phase 4 reveal.
+    bands.querySelectorAll(".attract-band-extra").forEach((b) => {
+      b.style.contentVisibility = "";
+    });
+
+    void bands.offsetHeight; // commit all cleanup before starting animations
+
+    // Phase 4 animation A: WAAPI scale(cs→1) on each original scaler.
+    // Visually: large text compresses to Phase 4 size as the band height shrinks.
+    // fill:'none' + finish handler commits the final scale so the next cycle is clean.
+    originalScalers.forEach((scaler) => {
+      const anim = scaler.animate(
+        [{ scale: String(cs) }, { scale: "1" }],
+        {
+          duration: 900,
+          easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+          fill: "none",
+        }
       );
-    priorAnims.forEach((a) => a.cancel());
-
-    void bands.offsetHeight; // commit scaler cleanup before starting container WAAPI
-
-    // WAAPI zoom-out on the container: scale(N → 1) over 0.9 s (compositor-only).
-    // fill:'none' so the animation does NOT linger after it ends — otherwise the
-    // fill:forwards effect (scale:'1') overrides the inline bands.style.scale set
-    // in Phase 3 of the NEXT cycle, causing all bands to appear at scale(1).
-    // The 'finish' handler commits the final state as an inline style instead.
-    const zoomAnim = bands.animate([{ scale: String(cs) }, { scale: "1" }], {
-      duration: 900,
-      easing: "cubic-bezier(0.22, 1, 0.36, 1)",
-      fill: "none",
-    });
-    zoomAnim.addEventListener("cancel", () =>
-      console.warn("[attract] container zoom-out animation cancelled")
-    );
-    zoomAnim.addEventListener("finish", () => {
-      console.log(
-        "[attract] container zoom-out animation finished – committing scale:1"
+      anim.addEventListener("cancel", () =>
+        console.warn("[attract] Phase 4 scaler zoom-out cancelled")
       );
-      // Commit final value as inline style so the WAAPI can safely go idle.
-      bands.style.scale = "1";
+      anim.addEventListener("finish", () => {
+        scaler.style.scale = "1";
+        console.log("[attract] Phase 4 scaler zoom-out finished – pinned at scale(1)");
+      });
     });
 
+    // Phase 4 animation B: CSS flex-grow transition on extra bands (0→1).
+    // Triggered by adding attract-phase4 class (sets all .attract-band to flex-grow:1).
+    // Extras have `transition: flex-grow 0.9s` (added in CSS), so they animate in.
+    // Originals stay at flex-grow:1 — their height naturally decreases as extras
+    // grow in and share the total flex space (3 → 12 bands worth).
     bands.classList.remove(
       "attract-phase-1",
       "attract-phase-2",
-      "attract-growing",
+      "attract-growing",  // removing this also unpauses extra band marquee animations
       "attract-scrolling"
     );
     bands.classList.add("attract-phase4");
@@ -911,21 +902,39 @@ class UIController {
 
     video.addEventListener("ended", () => {
       if (!window.useVideoAttract) return;
-      // Pause on frame 0 — visible "hold" while leaderboard exits.
+      // Seek to frame 0 while the leaderboard is still covering the video.
+      // Only dismiss the leaderboard once the seek completes and frame 0 is
+      // decoded — this prevents a flash of the last frame behind the panel.
       video.currentTime = 0;
       video.pause();
-      // Trigger leaderboard exit animation immediately.
-      this.setDemoLeaderboardVisible(false);
-      console.log(
-        `[attract] video ended — holding ${this.attractVideoHoldMs}ms then replaying`
-      );
-      // After the hold, play video and kick off a fresh cycle (lb show timer).
-      const t = setTimeout(() => {
+
+      const onFirstFrameReady = () => {
         if (!window.useVideoAttract) return;
-        video.play().catch(() => {});
-        this.startAttractCycle();
-      }, this.attractVideoHoldMs);
-      this.attractTimers.push(t);
+        this.setDemoLeaderboardVisible(false);
+        const LB_SLIDE_MS = 650;
+        const POST_LB_DELAY_MS = 2000;
+        console.log(
+          `[attract] frame 0 ready — leaderboard hiding, replaying in ${LB_SLIDE_MS + POST_LB_DELAY_MS}ms`
+        );
+        const t = setTimeout(() => {
+          if (!window.useVideoAttract) return;
+          this.startAttractCycle();
+        }, LB_SLIDE_MS + POST_LB_DELAY_MS);
+        this.attractTimers.push(t);
+      };
+
+      // `seeked` fires once the browser has decoded the target frame.
+      // Guard with a timeout in case the event never fires (e.g. broken src).
+      let settled = false;
+      const settle = () => {
+        if (settled) return;
+        settled = true;
+        video.removeEventListener("seeked", settle);
+        onFirstFrameReady();
+      };
+      video.addEventListener("seeked", settle, { once: true });
+      const fallback = setTimeout(settle, 500);
+      this.attractTimers.push(fallback);
     });
   }
 
@@ -1033,9 +1042,6 @@ class UIController {
     const bands = document.getElementById("attract-bands");
     if (!bands) return;
 
-    const m = this._getAttractMeasurements();
-    const cs = m ? m.containerScale : 4;
-
     switch (phaseName) {
       case "phase1":
         bands.classList.add("attract-phase-1");
@@ -1046,13 +1052,13 @@ class UIController {
         break;
 
       case "phase3":
-        // Phase 3: 3 large bands, scrolling, container at scale(N)
+        // Phase 3: 3 large bands, scrolling. Container stays at scale(1);
+        // startAttractScroll() applies scale(cs) to individual original scalers.
         bands.classList.add(
           "attract-phase-1",
           "attract-phase-2",
           "attract-growing"
         );
-        bands.style.scale = String(cs);
         // Schedule track building in next moment to let layout settle
         setTimeout(() => {
           this.startAttractScroll();
@@ -1060,13 +1066,12 @@ class UIController {
         break;
 
       case "phase4":
-        // Phase 4: adaptive-band grid, container zoom-out animation
+        // Phase 4: adaptive-band grid. Container stays at scale(1).
         bands.classList.add(
           "attract-phase-1",
           "attract-phase-2",
           "attract-growing"
         );
-        bands.style.scale = String(cs);
         // Build tracks first
         setTimeout(() => {
           this.startAttractScroll();
@@ -1084,7 +1089,7 @@ class UIController {
           "attract-phase-2",
           "attract-phase4"
         );
-        bands.style.scale = "1";
+        bands.style.scale = "";
         this.setDemoLeaderboardVisible(true);
         break;
 
@@ -1113,8 +1118,17 @@ class UIController {
 
   /** Flash the MISSED! overlay for a short duration. */
   showMissedOverlay(durationMs = 700) {
+    this._showWarningOverlay("MISSED!", durationMs);
+  }
+
+  showRedPressOverlay(durationMs = 900) {
+    this._showWarningOverlay("SHOULD HAVE WAITED IT OUT!", durationMs);
+  }
+
+  _showWarningOverlay(text, durationMs) {
     const el = document.getElementById("missed-overlay");
     if (!el) return;
+    el.textContent = text;
     el.classList.remove("hidden");
     clearTimeout(this._missedOverlayTimeout);
     this._missedOverlayTimeout = setTimeout(() => {
@@ -1124,7 +1138,9 @@ class UIController {
 
   hideMissedOverlay() {
     const el = document.getElementById("missed-overlay");
-    if (el) el.classList.add("hidden");
+    if (!el) return;
+    el.classList.add("hidden");
+    clearTimeout(this._missedOverlayTimeout);
   }
 
   updateTutorialStep() {
@@ -1605,21 +1621,86 @@ class UIController {
   }
 
   updatePreGameCountdown(seconds) {
-    const display = document.getElementById("countdown-display");
-    const numEl = document.getElementById("pre-game-countdown-value");
-    if (!display || !numEl) return;
-
     const val = Math.max(0, seconds);
+    const bgMap = { 3: "#03eabb", 2: "#fc36fe", 1: "#dfff96" };
 
-    // Swap background colour class
-    const colourMap = { 3: "cd-teal", 2: "cd-magenta", 1: "cd-lime" };
-    display.classList.remove("cd-teal", "cd-magenta", "cd-lime");
-    display.classList.add(colourMap[val] || "cd-teal");
+    if (val === 0) {
+      // Remove any stale countdown overlays left from previous ticks
+      document.querySelectorAll(".game-over-overlay").forEach((el) => el.remove());
 
-    // Re-trigger pop-in animation by replacing the element clone
-    const clone = numEl.cloneNode(true);
-    clone.textContent = val > 0 ? String(val) : "";
-    numEl.replaceWith(clone);
+      // Create overlay matching the "1" state for a slide-up reveal
+      const overlay = document.createElement("div");
+      overlay.className = "game-over-overlay";
+      overlay.style.background = bgMap[1];
+      overlay.innerHTML = '<span class="countdown-number">1</span>';
+      document.body.appendChild(overlay);
+
+      // Switch to game screen behind the overlay
+      this.hideAllScreens();
+      const gameScreen = document.getElementById("screen-game");
+      if (gameScreen) {
+        gameScreen.classList.remove("hidden");
+        this.currentScreen = "game";
+        this.currentScreenEl = gameScreen;
+      }
+
+      // Slide overlay + tip up together to reveal the game
+      const tipEl = document.getElementById("countdown-tip-overlay");
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          overlay.style.transition = "transform 0.4s ease-in";
+          overlay.style.transform = "translateY(-100%)";
+          if (tipEl) {
+            tipEl.style.transition = "transform 0.4s ease-in";
+            tipEl.style.transform = "translateY(-100vh)";
+          }
+        });
+      });
+
+      setTimeout(() => {
+        overlay.remove();
+        if (tipEl) tipEl.remove();
+      }, 450);
+      return;
+    }
+
+    // Create tip on first call — slides in from the right with the "3" overlay
+    if (!document.getElementById("countdown-tip-overlay")) {
+      const tip = document.createElement("p");
+      tip.id = "countdown-tip-overlay";
+      tip.className = "countdown-tip-overlay";
+      tip.textContent =
+        "tip: press the green squares as fast as you can and avoid the pink ones.";
+      tip.style.transform = "translateX(100%)";
+      document.body.appendChild(tip);
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          tip.style.transition = "transform 0.4s ease-out";
+          tip.style.transform = "translateX(0)";
+        });
+      });
+    }
+
+    // New number slides in from the right; previous overlay stays as the background
+    const overlay = document.createElement("div");
+    overlay.className = "game-over-overlay";
+    overlay.style.background = bgMap[val] || "#03eabb";
+    overlay.innerHTML = '<span class="countdown-number">' + val + "</span>";
+    document.body.appendChild(overlay);
+
+    overlay.style.transform = "translateX(100%)";
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        overlay.style.transition = "transform 0.4s ease-out";
+        overlay.style.transform = "translateX(0)";
+      });
+    });
+
+    // Remove any older overlays once this one fully covers the screen
+    const prev = overlay.previousElementSibling;
+    if (prev && prev.classList.contains("game-over-overlay")) {
+      setTimeout(() => prev.remove(), 420);
+    }
   }
 
   showGameEnd(totalScore, avgReaction, bestReaction) {
@@ -1730,7 +1811,7 @@ class UIController {
       const el = document.getElementById(id);
       if (!el) return;
       el.style.transition = "none";
-      el.style.transform = "translateX(100%)";
+      el.style.transform = "";
     });
 
     const actions = document.getElementById("lead-actions");
@@ -1740,30 +1821,52 @@ class UIController {
     }
   }
 
-  animateLeadFormIn() {
-    const ids = [
-      "lead-info-banner",
-      "lead-band-firstname",
-      "lead-band-lastname",
-      "touch-keyboard",
-      "lead-form-lower",
-    ];
-    const stagger = 70; // ms between each element
-    const duration = 320;
-    ids.forEach((id, i) => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      setTimeout(() => {
-        el.style.transition = `transform ${duration}ms cubic-bezier(0.22, 1, 0.36, 1)`;
-        el.style.transform = "translateX(0)";
-      }, i * stagger);
+  showLeadFormWithOverlay() {
+    this.resetLeadFormBands();
+
+    const overlay = document.createElement("div");
+    overlay.className = "game-over-overlay";
+    overlay.innerHTML = '<span class="game-over-overlay-text">YOUR INFO</span>';
+    document.body.appendChild(overlay);
+
+    // Phase 1: Slide in from the right (0 → 400ms)
+    overlay.style.transform = "translateX(100%)";
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        overlay.style.transition = "transform 0.4s ease-out";
+        overlay.style.transform = "translateX(0)";
+      });
     });
-    // Auto-activate first name field after animation settles
-    const totalDelay = (ids.length - 1) * stagger + duration + 40;
+
+    // Phase 2: Hold full-screen (400ms → 1000ms)
+
+    // Phase 3: Show lead form underneath + shrink overlay to banner height (1000ms → 1500ms)
     setTimeout(() => {
+      this.hideAllScreens();
+      const leadScreen = document.getElementById("screen-lead-form");
+      if (leadScreen) {
+        leadScreen.classList.remove("hidden");
+        this.currentScreen = "lead-form";
+        this.currentScreenEl = leadScreen;
+      }
+      const bannerEl = document.getElementById("lead-info-banner");
+      const bannerHeight = bannerEl ? bannerEl.offsetHeight : 291;
+      overlay.style.transition = "height 0.5s cubic-bezier(0.4, 0, 0.2, 1)";
+      overlay.style.height = bannerHeight + "px";
+    }, 1000);
+
+    // Phase 4: Fade out overlay, reveal banner beneath (1500ms → 1720ms)
+    setTimeout(() => {
+      overlay.style.transition = "opacity 0.2s ease";
+      overlay.style.opacity = "0";
+    }, 1520);
+
+    // Phase 5: Remove overlay + focus first field
+    setTimeout(() => {
+      overlay.remove();
       const firstNameInput = document.getElementById("lead-first-name-input");
       if (firstNameInput) firstNameInput.focus({ preventScroll: true });
-    }, totalDelay);
+    }, 1730);
   }
 
   showIdleWarning() {

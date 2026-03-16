@@ -47,7 +47,9 @@ class Game {
     this.timePenaltyRedMs = Math.round((CONFIG.game.timePenaltyRedSec || 1.4) * 1000);
     this.fastHitThresholdSec = CONFIG.game.fastHitThresholdSec || 0.22;
     this.goodHitThresholdSec = CONFIG.game.goodHitThresholdSec || 0.45;
-    this.redButtonProbability = CONFIG.game.redButtonProbability || 0.18;
+    this.redButtonsPerSession = CONFIG.game.redButtonsPerSession || 8;
+    this.redButtonMinSpacing = CONFIG.game.redButtonMinSpacing || 4;
+    this.redButtonMaxSpacing = CONFIG.game.redButtonMaxSpacing || 8;
     this.redPressPenalty = CONFIG.game.redPressPenalty || 420;
     this.difficultyRampExponent = CONFIG.game.difficultyRampExponent || 0.65;
 
@@ -182,10 +184,25 @@ class Game {
     }
     this.activeMoleIndex = null;
     this.currentReactionStart = null;
+    this._redSpawnSchedule = null;
+  }
+
+  _buildRedSchedule() {
+    const count = this.redButtonsPerSession;
+    const minGap = this.redButtonMinSpacing;
+    const maxGap = this.redButtonMaxSpacing;
+    const schedule = new Set();
+    let next = this.randomInt(3, 5);
+    for (let i = 0; i < count; i++) {
+      schedule.add(next);
+      next += this.randomInt(minGap, maxGap);
+    }
+    return schedule;
   }
 
   startGame() {
     this.resetGame();
+    this._redSpawnSchedule = this._buildRedSchedule();
     this.sessionStartTs = performance.now();
     this.lastCountdownTs = this.sessionStartTs;
     this.setState(window.GameState.GAME_PLAY);
@@ -360,7 +377,7 @@ class Game {
 
     const nextIndex = this.randomInt(0, 53);
     this.activeMoleIndex = nextIndex;
-    this.activeMoleType = Math.random() < this.redButtonProbability ? 'red' : 'good';
+    this.activeMoleType = this._redSpawnSchedule && this._redSpawnSchedule.has(this.molesSpawned) ? 'red' : 'good';
     this.currentReactionStart = performance.now();
     this.molesSpawned += 1;
     const progress = this.getDifficultyProgress();
@@ -374,7 +391,7 @@ class Game {
     console.log('[GAME][SPAWN_MOLE]', {
       moleIndex: this.activeMoleIndex,
       moleType: this.activeMoleType,
-      redButtonProbability: this.redButtonProbability,
+      redSpawnSchedule: this._redSpawnSchedule ? [...this._redSpawnSchedule] : [],
       visibleRangeMs: [CONFIG.game.moleVisibleStartMs || 1800, CONFIG.game.moleVisibleEndMs || 550],
       snapshot: this.getDebugSnapshot()
     });
@@ -565,6 +582,7 @@ class Game {
         { label: 'Time', value: -Number((this.timePenaltyRedMs / 1000).toFixed(2)), type: 'bad' }
       ]);
       window.ui.showGameStatus('Red penalty!', 'bad');
+      window.ui.showRedPressOverlay();
     }
     const sessionEnded = this.adjustTime(-this.timePenaltyRedMs, 'red_press');
     this.clearActiveMole();
