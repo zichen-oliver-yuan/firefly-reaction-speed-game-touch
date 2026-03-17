@@ -23,9 +23,6 @@ class LocalStorageBackup {
         name: playerData.name || 'Unknown',
         firstName: (playerData.firstName || '').trim(),
         lastName: (playerData.lastName || '').trim(),
-        email: (playerData.email || '').trim().toLowerCase(),
-        company: playerData.company || '',
-        newsletterOptIn: playerData.newsletterOptIn || 'No',
         id: playerData.id || '',
         totalScore: playerData.totalScore || 0,
         averageReactionTime: playerData.averageReactionTime || 0,
@@ -312,7 +309,7 @@ class LocalStorageBackup {
     if (scores.length === 0) return '';
 
     // CSV header
-    const headers = ['Timestamp', 'Name', 'Email', 'Company', 'Consent', 'ID', 'Score', 'Avg Reaction', 'Best Reaction', 'Rounds'];
+    const headers = ['Timestamp', 'Name', 'ID', 'Score', 'Avg Reaction', 'Best Reaction', 'Rounds'];
     let csv = headers.join(',') + '\n';
 
     // CSV rows
@@ -320,9 +317,6 @@ class LocalStorageBackup {
       const row = [
         score.timestamp || '',
         `"${(score.name || 'Unknown').replace(/"/g, '""')}"`, // Escape quotes
-        `"${(score.email || '').replace(/"/g, '""')}"`,
-        `"${(score.company || '').replace(/"/g, '""')}"`,
-        score.newsletterOptIn || 'No',
         score.id || '',
         score.totalScore || 0,
         score.averageReactionTime || 0,

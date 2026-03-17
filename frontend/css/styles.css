@@ -590,58 +590,125 @@ body {
 }
 
 .waiting-message.judgement-good,
-.odometer.delta-up {
-  color: var(--good);
-}
-
 .waiting-message.judgement-bad,
-.waiting-message.judgement-slow,
-.odometer.delta-down {
+.waiting-message.judgement-slow {
   color: var(--danger);
 }
 
 .odometer {
-  display: inline-grid;
-  grid-auto-flow: row;
+  display: inline-flex;
   overflow: hidden;
   line-height: 1;
+  align-items: flex-start;
 }
 
-.odometer-inner {
-  display: grid;
+.odometer-digit {
+  display: inline-flex;
+  align-items: flex-start;
+  justify-content: center;
+  overflow: hidden;
+  text-align: center;
+  min-width: 0.6em;
+  height: 1em;
 }
 
-.odometer-roll-up {
-  animation: rollUp 180ms cubic-bezier(0.2, 0.9, 0.2, 1);
+.odometer-digit.is-blank {
+  min-width: 0.3em;
 }
 
-.odometer-roll-down {
-  animation: rollDown 180ms cubic-bezier(0.2, 0.9, 0.2, 1);
+.odometer-digit-track {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: translateY(0);
+  will-change: transform;
 }
 
-@keyframes rollUp {
-  0% {
-    transform: translateY(38%);
-    opacity: 0.4;
-  }
-  100% {
-    transform: translateY(0);
-    opacity: 1;
-  }
+.odometer-digit-track.roll-up,
+.odometer-digit-track.roll-down {
+  transition: transform var(--odometer-duration, 420ms)
+    cubic-bezier(0.22, 0.82, 0.22, 1);
 }
 
-@keyframes rollDown {
-  0% {
-    transform: translateY(-38%);
-    opacity: 0.4;
-  }
-  100% {
-    transform: translateY(0);
-    opacity: 1;
-  }
+.odometer-digit-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0.6em;
+  height: 1em;
+}
+
+.odometer-digit-slot.is-blank {
+  opacity: 0;
 }
 
 /* ── Score / Results Screen ─────────────────────────────── */
+
+.screen-tip {
+  display: flex;
+  flex-direction: column;
+  background: #000;
+  overflow: hidden;
+}
+
+.tip-banner {
+  background: #d1d1d1;
+  height: var(--section-banner-height);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tip-banner-text {
+  font-family: var(--font-schrifted);
+  font-weight: 400;
+  font-size: clamp(42px, 13.3vw, 144px);
+  color: #000;
+  letter-spacing: -0.05em;
+  white-space: nowrap;
+}
+
+.tip-band {
+  height: var(--section-band-height);
+  width: 100%;
+  flex-shrink: 0;
+  padding: clamp(8px, 1.5vh, 16px) clamp(12px, 1.6vw, 17px) clamp(8px, 1.2vh, 12px);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-sizing: border-box;
+}
+
+.tip-band-teal  { background: #03eabb; }
+.tip-band-pink  { background: #fc36fe; }
+.tip-band-lime  { background: #b2ff00; }
+
+.tip-band-number {
+  font-family: var(--font-mono);
+  font-size: clamp(18px, 4.6vw, 50px);
+  color: #000;
+  letter-spacing: -0.05em;
+  line-height: 1;
+}
+
+.tip-band-body {
+  font-family: var(--font-schrifted);
+  font-weight: 400;
+  font-size: clamp(24px, 6.5vw, 72px);
+  color: #000;
+  letter-spacing: -0.05em;
+  text-align: right;
+  line-height: 1.05;
+}
+
+.tip-actions {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: clamp(16px, 5vh, 60px);
+}
 
 .screen-score {
   display: flex;
@@ -651,7 +718,7 @@ body {
 }
 
 .score-game-over-banner {
-  background: #b2ff00;
+  background: #d1d1d1;
   height: var(--section-banner-height);
   display: flex;
   align-items: center;
@@ -680,7 +747,8 @@ body {
 }
 
 .score-band-points { background: #03eabb; }
-.score-band-reaction { background: #fc36fe; }
+.score-band-missed { background: #fc36fe; }
+.score-band-best { background: #b2ff00; }
 
 .score-band-label {
   font-family: var(--font-mono);
@@ -699,6 +767,12 @@ body {
   letter-spacing: -0.05em;
   text-align: right;
   line-height: 1;
+}
+
+.score-band-value.odometer {
+  display: flex;
+  width: 100%;
+  justify-content: flex-end;
 }
 
 .score-cta-area {
@@ -729,6 +803,44 @@ body {
   width: var(--nav-btn-width);
 }
 
+/* ── Button Ticker ──────────────────────────────────────── */
+
+.btn-ticker {
+  position: fixed;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  pointer-events: none;
+  z-index: 500;
+  animation: tickerFloat 0.85s ease-out forwards;
+  text-align: left;
+}
+
+.btn-ticker-good .btn-ticker-score { color: #b2ff00; }
+.btn-ticker-bad  .btn-ticker-score { color: #fc36fe; }
+
+.btn-ticker-score,
+.btn-ticker-time {
+  font-family: var(--font-schrifted);
+  font-weight: 400;
+  font-size: clamp(13px, 3.2vw, 36px);
+  letter-spacing: -0.04em;
+  line-height: 1;
+  text-shadow: 0 1px 5px rgba(0, 0, 0, 0.9);
+}
+
+.btn-ticker-time {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+@keyframes tickerFloat {
+  0%   { opacity: 1; transform: translate(-50%, -50%); }
+  25%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, calc(-50% - 56px)); }
+}
+
 /* ── Game Over Sliding Overlay ──────────────────────────── */
 
 .game-over-overlay {
@@ -737,12 +849,16 @@ body {
   left: 0;
   right: 0;
   height: 100%;
-  background: #b2ff00;
+  background: #d1d1d1;
   z-index: 1000;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
+}
+
+.leaderboard-banner-overlay {
+  background: #03eabb;
 }
 
 .game-over-overlay-text {
@@ -765,7 +881,7 @@ body {
 
 /* YOUR INFO banner */
 .lead-info-banner {
-  background: #b2ff00;
+  background: #d1d1d1;
   height: var(--section-banner-height);
   flex-shrink: 0;
   display: flex;
@@ -1091,11 +1207,8 @@ body {
   color: #000;
   letter-spacing: -0.04em;
   line-height: 1;
-  display: inline-grid;
-  grid-auto-flow: row;
   overflow: hidden;
   align-self: flex-end;
-  text-align: right;
 }
 
 /* Grid container — full width, fills remaining screen height */
@@ -1142,16 +1255,22 @@ body {
   transition: transform var(--grow-duration, 1000ms) linear;
 }
 
-/* Target button — lime green, no glow */
+/* Target button — lime green with glow */
 .isc-button-grid .game-button.lit {
   background: #b2ff00;
-  box-shadow: none;
+  box-shadow:
+    0 0 18px 4px rgba(178, 255, 0, 0.6),
+    0 0 60px 12px rgba(178, 255, 0, 0.35),
+    0 0 120px 30px rgba(178, 255, 0, 0.15);
 }
 
-/* Red trap button */
+/* Red trap button with glow */
 .isc-button-grid .game-button.lit-red {
   background: #fc36fe;
-  box-shadow: none;
+  box-shadow:
+    0 0 18px 4px rgba(252, 54, 254, 0.6),
+    0 0 60px 12px rgba(252, 54, 254, 0.35),
+    0 0 120px 30px rgba(252, 54, 254, 0.15);
 }
 
 /* Press feedback: pop slightly bigger, no glow ripple */
@@ -1163,6 +1282,14 @@ body {
 
 .isc-button-grid .game-button.pressed::after {
   display: none !important; /* suppress default glow ripple */
+}
+
+/* During collapse, override the pressed pop so the tapped cell shrinks too. */
+.isc-button-grid.grid-collapsing .game-button,
+.isc-button-grid.grid-collapsing .game-button.pressed {
+  transform: scale(0) !important;
+  transition: transform var(--shrink-duration, 240ms)
+    cubic-bezier(0.22, 0.9, 0.3, 1) !important;
 }
 
 /* MISSED! / red-press warning overlay */
@@ -1424,6 +1551,13 @@ body {
 .countdown-display.cd-magenta { background: #fc36fe; }
 .countdown-display.cd-lime    { background: #dfff96; }
 
+.countdown-display-transition {
+  position: fixed;
+  inset: 0;
+  z-index: 1002;
+  pointer-events: none;
+}
+
 .countdown-number {
   font-family: var(--font-schrifted);
   font-weight: 400;
@@ -1431,6 +1565,11 @@ body {
   color: #000;
   line-height: 0.85;
   letter-spacing: -0.05em;
+}
+
+.countdown-number.odometer {
+  display: inline-flex;
+  justify-content: center;
 }
 
 /* Persistent tip shown above slide-in overlays during 3-2-1 countdown */
@@ -1455,6 +1594,16 @@ body {
 
 .screen-leaderboard .screen-shell {
   background: #000;
+  transform: translateY(0);
+  transition: transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.screen-leaderboard {
+  z-index: 12;
+}
+
+.screen-leaderboard.is-exiting .screen-shell {
+  transform: translateY(100%);
 }
 
 .screen-leaderboard .leaderboard-list {
@@ -1467,14 +1616,19 @@ body {
 .lb-dark-header {
   background: #03eabb;
   color: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-family: var(--font-schrifted);
   font-weight: 400;
-  font-size: clamp(3.6rem, 9.6vw, 10.4rem);
-  letter-spacing: -0.03em;
+  font-size: clamp(72px, 13.3vw, 144px);
+  letter-spacing: -0.05em;
   text-align: center;
-  padding: clamp(12px, 2vh, 28px) clamp(12px, 2vw, 20px);
+  height: var(--section-banner-height);
+  padding: 0;
   flex-shrink: 0;
   line-height: 1;
+  white-space: nowrap;
 }
 
 /* Dark-mode leaderboard list */

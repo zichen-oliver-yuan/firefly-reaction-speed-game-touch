@@ -167,6 +167,13 @@ function setupEventHandlers() {
   bindPress(demoStartBtn, () => {
     if (window.game) {
       window.game.resetGame();
+      window.game.setState(window.GameState.TIP_PAGE);
+    }
+  });
+
+  const tipReadyBtn = document.getElementById('tip-ready-btn');
+  bindPress(tipReadyBtn, () => {
+    if (window.game) {
       window.game.setState(window.GameState.PRE_GAME_COUNTDOWN);
     }
   });
@@ -246,9 +253,6 @@ function setupEventHandlers() {
       window.game.playerName = fullName;
       window.game.playerFirstName = data.firstName.trim();
       window.game.playerLastName = data.lastName.trim();
-      window.game.playerEmail = '';
-      window.game.playerCompany = '';
-      window.game.newsletterOptIn = false;
 
       const playerData = window.game.buildPlayerData();
       const cachedRemoteLeaderboard = window.game.getCachedRemoteLeaderboard(1000);

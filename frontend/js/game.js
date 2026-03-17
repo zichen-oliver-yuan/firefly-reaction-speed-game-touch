@@ -3,6 +3,7 @@
 window.GameState = {
   DEMO: 'demo',
   WELCOME: 'welcome',
+  TIP_PAGE: 'tip_page',
   PRE_GAME_COUNTDOWN: 'countdown',
   GAME_START: 'game_start',
   GAME_PLAY: 'game_play',
@@ -34,6 +35,7 @@ class Game {
     this.misses = 0;
     this.wrongWhacks = 0;
     this.molesSpawned = 0;
+    this.comboStreak = 0;
     this.preGameCountdownInterval = null;
     this.missPenalty = CONFIG.game.missPenalty || 120;
     this.wrongPressPenalty = CONFIG.game.wrongPressPenalty || 150;
@@ -51,14 +53,11 @@ class Game {
     this.redButtonMinSpacing = CONFIG.game.redButtonMinSpacing || 4;
     this.redButtonMaxSpacing = CONFIG.game.redButtonMaxSpacing || 8;
     this.redPressPenalty = CONFIG.game.redPressPenalty || 420;
-    this.difficultyRampExponent = CONFIG.game.difficultyRampExponent || 0.65;
+    // Difficulty curve is handled by the 3-phase getDifficultyProgress()
 
     this.playerName = '';
     this.playerFirstName = '';
     this.playerLastName = '';
-    this.playerEmail = '';
-    this.playerCompany = '';
-    this.newsletterOptIn = false;
     this.playerId = null;
     this.currentScoreId = null;
 
@@ -141,7 +140,14 @@ class Game {
 
     let remaining = CONFIG.game.preGameCountdownSeconds || 5;
     if (window.ui) {
-      window.ui.updatePreGameCountdown(remaining);
+      requestAnimationFrame(() => {
+        if (
+          window.ui &&
+          this.state === window.GameState.PRE_GAME_COUNTDOWN
+        ) {
+          window.ui.updatePreGameCountdown(remaining);
+        }
+      });
     }
 
     this.preGameCountdownInterval = setInterval(() => {
@@ -169,12 +175,10 @@ class Game {
     this.misses = 0;
     this.wrongWhacks = 0;
     this.molesSpawned = 0;
+    this.comboStreak = 0;
     this.playerName = '';
     this.playerFirstName = '';
     this.playerLastName = '';
-    this.playerEmail = '';
-    this.playerCompany = '';
-    this.newsletterOptIn = false;
     this.playerId = null;
     this.currentScoreId = null;
     this.clearGameplayTimers();
@@ -256,8 +260,29 @@ class Game {
     if (!this.sessionStartTs) return 0;
     const elapsedMs = performance.now() - this.sessionStartTs;
     const plannedDurationMs = this.sessionDurationSeconds * 1000;
-    const linearProgress = this.clamp(elapsedMs / plannedDurationMs, 0, 1);
-    return Math.pow(linearProgress, this.difficultyRampExponent);
+    const t = this.clamp(elapsedMs / plannedDurationMs, 0, 1);
+
+    // 3-phase curve (all thresholds are fractions of session duration):
+    //   Phase 1  [0 .. easyEnd]   — easy: stays near 0% difficulty
+    //   Phase 2  [easyEnd .. rampStart] — plateau at mild difficulty
+    //   Phase 3  [rampStart .. 1] — linear ramp to 100%
+    const easyEnd = 0.12;      // ~first 4-5 rounds at starting pace
+    const easyLevel = 0.05;    // barely harder than start
+    const rampStart = 0.55;    // last ~45% of the game ramps to max
+    const plateauLevel = 0.55; // moderate-hard difficulty during the middle
+
+    if (t <= easyEnd) {
+      // Gentle ease-in from 0 to easyLevel
+      return easyLevel * (t / easyEnd);
+    }
+    if (t <= rampStart) {
+      // Plateau: smooth interpolation from easyLevel to plateauLevel
+      const mid = (t - easyEnd) / (rampStart - easyEnd);
+      return easyLevel + (plateauLevel - easyLevel) * mid;
+    }
+    // Final ramp: linear from plateauLevel to 1.0
+    const end = (t - rampStart) / (1 - rampStart);
+    return plateauLevel + (1 - plateauLevel) * end;
   }
 
   getCurrentSpawnGapMs() {
@@ -477,9 +502,9 @@ class Game {
         snapshotBefore
       });
       if (this.activeMoleType === 'red') {
-        this.handleRedPress();
+        this.handleRedPress(buttonIndex);
       } else {
-        this.handleCorrectPress();
+        this.handleCorrectPress(buttonIndex);
       }
     } else {
       console.log('[GAME][GRID_PRESS_DECISION]', {
@@ -489,11 +514,11 @@ class Game {
         litButtonIndex: this.activeMoleIndex,
         snapshotBefore
       });
-      this.handleWrongPress();
+      this.handleWrongPress(buttonIndex);
     }
   }
 
-  handleCorrectPress() {
+  handleCorrectPress(buttonIndex) {
     if (!this.currentReactionStart || this.activeMoleIndex === null) {
       return;
     }
@@ -501,25 +526,38 @@ class Game {
     const reactionTime = (performance.now() - this.currentReactionStart) / 1000;
     this.reactionTimes.push(reactionTime);
     this.hits += 1;
+    this.comboStreak += 1;
 
     const scoreBreakdown = this.scoring.calculateHitScore(reactionTime);
-    this.score += scoreBreakdown.total;
+    const comboMultiplier = this.comboStreak >= 2 ? this.comboStreak : 1;
+    const finalScore = scoreBreakdown.base * comboMultiplier;
+    this.score += finalScore;
     const timeReward = this.getHitTimeReward(reactionTime);
     this.adjustTime(timeReward.deltaMs, timeReward.reason);
     console.log('[GAME][HIT]', {
       reactionTimeSeconds: reactionTime,
       scoreBreakdown,
+      comboStreak: this.comboStreak,
+      comboMultiplier,
+      finalScore,
       timeReward,
       snapshotAfterScore: this.getDebugSnapshot()
     });
 
     if (window.ui) {
-      window.ui.clearLitButton();
+      const tickerLine2 = this.comboStreak >= 2
+        ? `COMBO ${this.comboStreak}X`
+        : `+${(timeReward.deltaMs / 1000).toFixed(1)}s`;
+      window.ui.showButtonTicker(
+        buttonIndex,
+        `+${finalScore}`,
+        tickerLine2,
+        'good'
+      );
       window.ui.updateScore(this.score);
       window.ui.updateGameStats(this.hits, this.misses, this.wrongWhacks);
       window.ui.animateScoreBreakdown([
-        { label: 'Hit', value: scoreBreakdown.hit, type: 'good' },
-        { label: 'Speed', value: scoreBreakdown.speed, type: 'good' }
+        { label: 'Hit', value: scoreBreakdown.base, type: 'good' }
       ]);
       window.ui.animateTimeBreakdown([
         { label: 'Time', value: Number((timeReward.deltaMs / 1000).toFixed(2)), type: 'good' }
@@ -527,14 +565,19 @@ class Game {
       window.ui.showGameStatus(timeReward.message, 'good');
     }
 
+    const collapseDelayMs = window.ui ? window.ui.clearLitButton(true) : 0;
     this.clearActiveMole();
-    this.spawnMole(); // no gap — next mole spawns immediately after a hit
+    this.moleSpawnTimeout = setTimeout(() => {
+      this.moleSpawnTimeout = null;
+      this.spawnMole();
+    }, collapseDelayMs);
   }
 
-  handleWrongPress() {
+  handleWrongPress(buttonIndex) {
     const scoreBefore = this.score;
-    this.score -= this.wrongPressPenalty;
+    this.score = Math.max(0, this.score - this.wrongPressPenalty);
     this.wrongWhacks += 1;
+    this.comboStreak = 0;
     console.log('[GAME][WRONG_PRESS]', {
       wrongPressPenalty: this.wrongPressPenalty,
       scoreBefore,
@@ -543,6 +586,12 @@ class Game {
       snapshotAfterScore: this.getDebugSnapshot()
     });
     if (window.ui) {
+      window.ui.showButtonTicker(
+        buttonIndex,
+        `-${this.wrongPressPenalty}`,
+        'COMBO RESET',
+        'bad'
+      );
       window.ui.updateScore(this.score);
       window.ui.updateGameStats(this.hits, this.misses, this.wrongWhacks);
       window.ui.animateScoreBreakdown([
@@ -556,14 +605,15 @@ class Game {
     this.adjustTime(-this.timePenaltyWrongMs, 'wrong_press');
   }
 
-  handleRedPress() {
+  handleRedPress(buttonIndex) {
     if (this.activeMoleIndex === null || this.activeMoleType !== 'red') {
       return;
     }
 
     const scoreBefore = this.score;
-    this.score -= this.redPressPenalty;
+    this.score = Math.max(0, this.score - this.redPressPenalty);
     this.wrongWhacks += 1;
+    this.comboStreak = 0;
     console.log('[GAME][RED_PRESS]', {
       redPressPenalty: this.redPressPenalty,
       timePenaltyRedMs: this.timePenaltyRedMs,
@@ -572,7 +622,12 @@ class Game {
       snapshotAfterScore: this.getDebugSnapshot()
     });
     if (window.ui) {
-      window.ui.clearLitButton();
+      window.ui.showButtonTicker(
+        buttonIndex,
+        `-${this.redPressPenalty}`,
+        'COMBO RESET',
+        'bad'
+      );
       window.ui.updateScore(this.score);
       window.ui.updateGameStats(this.hits, this.misses, this.wrongWhacks);
       window.ui.animateScoreBreakdown([
@@ -584,10 +639,14 @@ class Game {
       window.ui.showGameStatus('Red penalty!', 'bad');
       window.ui.showRedPressOverlay();
     }
+    const collapseDelayMs = window.ui ? window.ui.clearLitButton(true) : 0;
     const sessionEnded = this.adjustTime(-this.timePenaltyRedMs, 'red_press');
     this.clearActiveMole();
     if (!sessionEnded) {
-      this.scheduleNextMole();
+      this.moleSpawnTimeout = setTimeout(() => {
+        this.moleSpawnTimeout = null;
+        this.scheduleNextMole();
+      }, collapseDelayMs);
     }
   }
 
@@ -612,9 +671,9 @@ class Game {
 
     const missedMoleIndex = this.activeMoleIndex;
     const scoreBefore = this.score;
-    this.score -= this.missPenalty;
+    this.score = Math.max(0, this.score - this.missPenalty);
     this.misses += 1;
-    this.reactionTimes.push(CONFIG.game.maxReactionTime);
+    this.comboStreak = 0;
     console.log('[GAME][MISS]', {
       missedMoleIndex,
       missPenalty: this.missPenalty,
@@ -623,6 +682,12 @@ class Game {
       snapshotAfterScore: this.getDebugSnapshot()
     });
     if (window.ui) {
+      window.ui.showButtonTicker(
+        missedMoleIndex,
+        `-${this.missPenalty}`,
+        'COMBO RESET',
+        'bad'
+      );
       window.ui.clearLitButton();
       window.ui.showMissedOverlay(700);
       window.ui.updateScore(this.score);
@@ -679,15 +744,12 @@ class Game {
     this.clearGameplayTimers();
     this.activeMoleIndex = null;
 
-    const avgReaction = this.reactionTimes.length > 0
-      ? this.reactionTimes.reduce((a, b) => a + b, 0) / this.reactionTimes.length
-      : 0;
     const bestReaction = this.reactionTimes.length > 0
       ? Math.min(...this.reactionTimes)
       : 0;
 
     if (window.ui) {
-      window.ui.showGameEnd(this.score, avgReaction, bestReaction);
+      window.ui.showGameEnd(this.score, this.misses, this.molesSpawned, bestReaction);
     }
     this.setState(window.GameState.SHOW_SCORE);
   }
@@ -712,9 +774,6 @@ class Game {
       name: this.playerName || 'Unknown',
       firstName: (this.playerFirstName || '').trim(),
       lastName: (this.playerLastName || '').trim(),
-      email: (this.playerEmail || '').trim().toLowerCase(),
-      company: this.playerCompany || '',
-      newsletterOptIn: this.newsletterOptIn ? 'Yes' : 'No',
       id: this.playerId,
       sessionId: this.playerId,
       totalScore: this.score,

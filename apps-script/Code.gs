@@ -15,8 +15,6 @@ const MAX_REACTION_TIMES = 200;
 const MAX_NAME_LENGTH = 60;
 const MAX_FIRST_NAME_LENGTH = 40;
 const MAX_LAST_NAME_LENGTH = 40;
-const MAX_EMAIL_LENGTH = 254;
-const MAX_COMPANY_LENGTH = 80;
 const HEADERS = [
   'scoreId',
   'timestamp',
@@ -24,9 +22,6 @@ const HEADERS = [
   'name',
   'firstName',
   'lastName',
-  'email',
-  'company',
-  'newsletterOptIn',
   'totalScore',
   'averageReactionTime',
   'bestReactionTime',
@@ -78,16 +73,13 @@ function handleSubmitScore(payload) {
   const firstName = firstNameRaw || getFirstNameFromFullName(fallbackName);
   const lastName = lastNameRaw || getLastNameFromFullName(fallbackName);
   const name = normalizeString((firstName + ' ' + lastName).trim() || fallbackName, MAX_NAME_LENGTH);
-  const email = normalizeEmail(payload.email);
-  const company = normalizeString(payload.company, MAX_COMPANY_LENGTH);
-  const newsletterOptIn = normalizeConsent(payload.newsletterOptIn);
   const totalScore = toNumber(payload.totalScore);
   const averageReactionTime = toNumber(payload.averageReactionTime);
   const bestReactionTime = toNumber(payload.bestReactionTime);
   const reactionTimes = normalizeReactionTimes(payload.reactionTimes);
   const rounds = toInt(payload.rounds);
 
-  if (!scoreId || !timestamp || !name || !email) {
+  if (!scoreId || !timestamp || !name) {
     return jsonResponse({ ok: false, error: 'Missing required fields' });
   }
 
@@ -112,9 +104,6 @@ function handleSubmitScore(payload) {
   row[colMap.name] = name;
   row[colMap.firstName] = firstName;
   row[colMap.lastName] = lastName;
-  row[colMap.email] = email;
-  row[colMap.company] = company;
-  row[colMap.newsletterOptIn] = newsletterOptIn;
   row[colMap.totalScore] = totalScore;
   row[colMap.averageReactionTime] = averageReactionTime;
   row[colMap.bestReactionTime] = bestReactionTime;
@@ -278,15 +267,12 @@ function seedScoresWithFakeData(count) {
     row[colMap.name] = fakeRow[3];
     row[colMap.firstName] = fakeRow[4];
     row[colMap.lastName] = fakeRow[5];
-    row[colMap.email] = fakeRow[6];
-    row[colMap.company] = fakeRow[7];
-    row[colMap.newsletterOptIn] = fakeRow[8];
-    row[colMap.totalScore] = fakeRow[9];
-    row[colMap.averageReactionTime] = fakeRow[10];
-    row[colMap.bestReactionTime] = fakeRow[11];
-    row[colMap.reactionTimesJson] = fakeRow[12];
-    row[colMap.rounds] = fakeRow[13];
-    row[colMap.source] = fakeRow[14];
+    row[colMap.totalScore] = fakeRow[6];
+    row[colMap.averageReactionTime] = fakeRow[7];
+    row[colMap.bestReactionTime] = fakeRow[8];
+    row[colMap.reactionTimesJson] = fakeRow[9];
+    row[colMap.rounds] = fakeRow[10];
+    row[colMap.source] = fakeRow[11];
     return row;
   });
 
@@ -296,15 +282,12 @@ function seedScoresWithFakeData(count) {
 function generateFakeRows(count) {
   var firstNames = ['Alex', 'Jordan', 'Taylor', 'Casey', 'Riley', 'Morgan', 'Avery', 'Quinn', 'Hayden', 'Skyler'];
   var lastNames = ['Lee', 'Chen', 'Patel', 'Nguyen', 'Garcia', 'Kim', 'Johnson', 'Brown', 'Miller', 'Davis'];
-  var companies = ['Firefly Labs', 'NovaTech', 'BlueOrbit', 'Peak Systems', 'BrightOps', 'Vertex AI', 'Orbitron', 'Pinecone', 'Luma', 'Aster'];
 
   var rows = [];
   for (var i = 0; i < count; i += 1) {
     var first = firstNames[i % firstNames.length];
     var last = lastNames[(i * 3) % lastNames.length];
     var name = first + ' ' + last;
-    var email = (first + '.' + last + (i + 1) + '@example.com').toLowerCase();
-    var company = companies[(i * 7) % companies.length];
     var score = Math.max(500, 18000 - (i * 97));
     var avg = Number((0.18 + ((i % 17) * 0.012)).toFixed(3));
     var best = Number(Math.max(0.11, avg - 0.06).toFixed(3));
@@ -323,9 +306,6 @@ function generateFakeRows(count) {
       name,
       first,
       last,
-      email,
-      company,
-      (i % 3 === 0) ? 'Yes' : 'No',
       score,
       avg,
       best,
@@ -377,15 +357,12 @@ function getColumnMap(header) {
     name: getColumnIndex(header, 'name', 3),
     firstName: getColumnIndex(header, 'firstname', 4),
     lastName: getColumnIndex(header, 'lastname', 5),
-    email: getColumnIndex(header, 'email', 6),
-    company: getColumnIndex(header, 'company', 7),
-    newsletterOptIn: getColumnIndex(header, 'newsletteroptin', 8),
-    totalScore: getColumnIndex(header, 'totalscore', 9),
-    averageReactionTime: getColumnIndex(header, 'averagereactiontime', 10),
-    bestReactionTime: getColumnIndex(header, 'bestreactiontime', 11),
-    reactionTimesJson: getColumnIndex(header, 'reactiontimesjson', 12),
-    rounds: getColumnIndex(header, 'rounds', 13),
-    source: getColumnIndex(header, 'source', 14)
+    totalScore: getColumnIndex(header, 'totalscore', 6),
+    averageReactionTime: getColumnIndex(header, 'averagereactiontime', 7),
+    bestReactionTime: getColumnIndex(header, 'bestreactiontime', 8),
+    reactionTimesJson: getColumnIndex(header, 'reactiontimesjson', 9),
+    rounds: getColumnIndex(header, 'rounds', 10),
+    source: getColumnIndex(header, 'source', 11)
   };
 }
 
@@ -434,20 +411,6 @@ function getScoresSheet() {
 function getSheetByName(name) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   return ss.getSheetByName(name);
-}
-
-function normalizeConsent(value) {
-  const text = String(value || '').toLowerCase();
-  if (value === true || text === 'yes' || text === 'true' || text === '1') {
-    return 'Yes';
-  }
-  return 'No';
-}
-
-function normalizeEmail(value) {
-  const email = normalizeString(value, MAX_EMAIL_LENGTH).toLowerCase();
-  const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  return valid ? email : '';
 }
 
 function normalizeString(value, maxLength) {

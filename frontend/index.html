@@ -98,6 +98,28 @@
         </button>
       </section>
 
+      <section id="screen-tip" class="screen screen-tip hidden">
+        <div class="tip-banner">
+          <span class="tip-banner-text">HOW TO PLAY</span>
+        </div>
+        <div class="tip-band tip-band-teal">
+          <span class="tip-band-number">1</span>
+          <span class="tip-band-body">Tap the lit green button as fast as you can.</span>
+        </div>
+        <div class="tip-band tip-band-pink">
+          <span class="tip-band-number">2</span>
+          <span class="tip-band-body">Avoid red buttons.</span>
+        </div>
+        <div class="tip-band tip-band-lime">
+          <span class="tip-band-number">3</span>
+          <span class="tip-band-body">Earn combos with faster reaction.</span>
+        </div>
+        <div class="tip-actions">
+          <button id="tip-ready-btn" class="score-next-btn nav-play-btn">
+READY          </button>
+        </div>
+      </section>
+
       <section id="screen-welcome" class="screen screen-welcome hidden">
         <div class="screen-shell shell-light center-content">
           <div class="panel-copy">Welcome</div>
@@ -106,7 +128,12 @@
 
       <section id="screen-countdown" class="screen screen-countdown hidden">
         <div id="countdown-display" class="countdown-display cd-teal">
-          <span id="pre-game-countdown-value" class="countdown-number">3</span>
+          <span
+            id="pre-game-countdown-value"
+            class="countdown-number odometer"
+            data-value="3"
+            ><span class="odometer-digit"><span class="odometer-digit-track"><span class="odometer-digit-slot">3</span></span></span></span
+          >
         </div>
       </section>
 
@@ -119,7 +146,7 @@
                 id="current-score"
                 class="isc-panel-value odometer"
                 data-value="0"
-                >0</span
+                ><span class="odometer-digit">0</span></span
               >
             </div>
             <div class="isc-panel isc-panel-time">
@@ -128,7 +155,7 @@
                 id="time-left"
                 class="isc-panel-value odometer"
                 data-value="30"
-                >30</span
+                ><span class="odometer-digit">3</span><span class="odometer-digit">0</span></span
               >
             </div>
           </header>
@@ -154,12 +181,18 @@
           <span class="score-game-over-text">GAME OVER</span>
         </div>
         <div class="score-band score-band-points">
-          <span class="score-band-label">POINTS</span>
-          <span id="final-score" class="score-band-value">0</span>
+          <span class="score-band-label">SCORE</span>
+          <span id="final-score" class="score-band-value odometer" data-value="0"
+            ><span class="odometer-digit"><span class="odometer-digit-track"><span class="odometer-digit-slot">0</span></span></span></span
+          >
         </div>
-        <div class="score-band score-band-reaction">
-          <span class="score-band-label">AVERAGE REACTION TIME</span>
-          <span id="avg-reaction" class="score-band-value">0.000sec</span>
+        <div class="score-band score-band-missed">
+          <span class="score-band-label">MISSED</span>
+          <span id="missed-display" class="score-band-value">0/0</span>
+        </div>
+        <div class="score-band score-band-best">
+          <span class="score-band-label">BEST REACTION TIME</span>
+          <span id="best-reaction" class="score-band-value">—</span>
         </div>
         <div class="score-cta-area">
           <p class="score-cta-text">
