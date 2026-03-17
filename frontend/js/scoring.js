@@ -2,27 +2,30 @@
 
 class ScoringSystem {
   constructor() {
-    this.speedBonusRatio = 0.6;
+    this.minScore = 30;
+    this.maxScore = 500;
+    this.fastTime = 0.3;   // at or below this → max score
+    this.exponent = 2.5;   // exponential curve steepness
   }
 
   /**
-   * Calculate hit score based on reaction time.
+   * Calculate hit score based on reaction time (exponential curve).
+   * Returns 50 for slow reactions, up to 1000 for ≤0.3s.
    * @param {number} reactionTime - Reaction time in seconds
    * @returns {object} Score breakdown
    */
   calculateHitScore(reactionTime) {
     const maxTime = CONFIG.game.maxReactionTime;
-    const minTime = CONFIG.game.minReactionTime;
-    const baseHitScore = CONFIG.game.hitScore || 300;
-
-    const normalizedTime = Math.max(0, Math.min(1, (maxTime - reactionTime) / (maxTime - minTime)));
-    const speedBonus = Math.floor(baseHitScore * this.speedBonusRatio * normalizedTime);
-    const totalScore = baseHitScore + speedBonus;
+    const normalized = Math.max(0, Math.min(1,
+      (maxTime - reactionTime) / (maxTime - this.fastTime)
+    ));
+    const baseScore = Math.round(
+      this.minScore + (this.maxScore - this.minScore) * Math.pow(normalized, this.exponent)
+    );
 
     return {
-      hit: baseHitScore,
-      speed: speedBonus,
-      total: totalScore
+      base: baseScore,
+      total: baseScore
     };
   }
 

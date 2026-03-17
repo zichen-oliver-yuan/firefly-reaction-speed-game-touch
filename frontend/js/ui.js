@@ -23,10 +23,12 @@ class UIController {
     this.transitionTimer = null;
     this.transitionFromEl = null;
     this.transitionToEl = null;
+    const uiConfig = (runtimeConfig && runtimeConfig.ui) || {};
     this.demoRefreshInterval = null;
     this.demoRefreshMs = 12000;
     this.demoLoadedOnce = false;
     this.lastLeaderboardInteractionTs = Date.now();
+    this.odometerEnabled = uiConfig.enableOdometer !== false;
     this.ambientLeaderboardScrollEnabled =
       ambientScrollConfig.enabled !== false;
     this.ambientLeaderboardScrollDemoOnly =
@@ -49,10 +51,15 @@ class UIController {
     this.leaderboardAutoScrollPositionByList = {};
     this.lastTimeValue = null;
     this.lastScoreValue = null;
+    this.countdownIntroPlayed = false;
+    this.gridCollapseDelayMs = 120;
+    this.gridCollapseDurationMs = 240;
 
     // Attract cycle timers (multi-step: reveal → grow → scroll → grid → lb → repeat)
     this.attractTimers = [];
     this.attractLbVisible = false;
+    this.leaderboardOverlayDurationMs = 650;
+    this.leaderboardOverlayTimer = null;
     this.attractMeasurementsCache = null; // cached on first cycle, invalidated on resize
 
     // ── Phase timing (ms from cycle start) ──
@@ -62,7 +69,6 @@ class UIController {
     this.attractGridMs = 9500; // Phase 4: zoom-out (all 12 bands)
     this.attractLbShowMs = 18000; // Leaderboard slides up
     this.attractLbHideMs = 30000; // Leaderboard hides → restart cycle (DOM mode)
-    const uiConfig = runtimeConfig.ui || {};
     this.attractVideoHoldMs = Number.isFinite(uiConfig.attractVideoHoldMs)
       ? uiConfig.attractVideoHoldMs
       : 4000;
@@ -117,13 +123,22 @@ class UIController {
 
     switch (state) {
       case "demo":
-        this.showScreen("demo", nav.direction);
-        this.clearLeadFormData();
-        this.startDemoRefresh();
-        this.startAttractCycle();
+        if (this.currentScreen === "leaderboard") {
+          this.hideLeaderboardOverlayToDemo();
+        } else {
+          this.showScreen("demo", nav.direction);
+          this.clearLeadFormData();
+          this.startDemoRefresh();
+          this.startAttractCycle();
+        }
+        break;
+      case "tip_page":
+        this.showTipWithOverlay();
         break;
       case "countdown":
         this.stopAttractCycle();
+        this.showScreen("countdown", nav.direction);
+        this.playCountdownIntro();
         break;
       case "game_start":
       case "game_play":
@@ -131,7 +146,9 @@ class UIController {
         this.initializeButtonGrid();
         break;
       case "show_score":
-        this.showScreen("score", nav.direction);
+        if (!document.querySelector(".game-over-overlay")) {
+          this.showScreen("score", nav.direction);
+        }
         break;
       case "game_end":
         break;
@@ -140,7 +157,7 @@ class UIController {
         this.showLeadFormWithOverlay();
         break;
       case "show_leaderboard":
-        this.showScreen("leaderboard", nav.direction);
+        this.showLeaderboardOverlay();
         break;
       case "idle_warning":
         this.showScreen("idle-warning", nav.direction);
@@ -155,6 +172,8 @@ class UIController {
     const screens = document.querySelectorAll(".screen");
     screens.forEach((screen) => {
       screen.classList.add("hidden");
+      screen.classList.remove("visible");
+      screen.classList.remove("is-exiting");
       screen.classList.remove("fade-enter", "fade-exit");
       screen.style.opacity = "";
       screen.style.transition = "";
@@ -192,6 +211,24 @@ class UIController {
     if (!nextScreen) return;
 
     this.settlePendingTransition();
+    this.clearLeaderboardOverlayTimer();
+
+    if (
+      this.currentScreen === "leaderboard" &&
+      screenId !== "leaderboard" &&
+      screenId !== "demo"
+    ) {
+      const demoScreen = document.getElementById("screen-demo");
+      if (demoScreen) {
+        demoScreen.classList.remove("hidden");
+        demoScreen.style.opacity = "";
+        demoScreen.style.transition = "";
+        this.clearContentMotion(demoScreen);
+        this.currentScreen = "demo";
+        this.currentScreenEl = demoScreen;
+      }
+      this.hideLeaderboardOverlayImmediate();
+    }
 
     const previous = this.currentScreenEl;
     if (!previous || previous === nextScreen) {
@@ -508,6 +545,114 @@ class UIController {
     if (!panel) return;
     this.attractLbVisible = visible;
     panel.classList.toggle("visible", visible);
+  }
+
+  clearLeaderboardOverlayTimer() {
+    if (!this.leaderboardOverlayTimer) return;
+    clearTimeout(this.leaderboardOverlayTimer);
+    this.leaderboardOverlayTimer = null;
+  }
+
+  hideLeaderboardOverlayImmediate() {
+    this.clearLeaderboardOverlayTimer();
+    const leaderboardScreen = document.getElementById("screen-leaderboard");
+    if (!leaderboardScreen) return;
+    leaderboardScreen.classList.remove("visible", "is-exiting");
+    leaderboardScreen.classList.add("hidden");
+    leaderboardScreen.style.opacity = "";
+    leaderboardScreen.style.transition = "";
+    this.clearContentMotion(leaderboardScreen);
+  }
+
+  showLeaderboardOverlay() {
+    const demoScreen = document.getElementById("screen-demo");
+    const leaderboardScreen = document.getElementById("screen-leaderboard");
+    if (!demoScreen || !leaderboardScreen) {
+      this.showScreen("leaderboard");
+      return;
+    }
+
+    this.settlePendingTransition();
+    this.clearLeaderboardOverlayTimer();
+    const overlay = document.createElement("div");
+    overlay.className = "game-over-overlay leaderboard-banner-overlay";
+    overlay.innerHTML =
+      '<span class="game-over-overlay-text">LEADERBOARD</span>';
+    document.body.appendChild(overlay);
+
+    overlay.style.transform = "translateX(100%)";
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        overlay.style.transition =
+          "transform 0.4s cubic-bezier(0.22, 1, 0.36, 1)";
+        overlay.style.transform = "translateX(0)";
+      });
+    });
+
+    setTimeout(() => {
+      this.hideAllScreens();
+      this.clearLeadFormData();
+      this.setDemoLeaderboardVisible(false);
+      demoScreen.classList.remove("hidden");
+      leaderboardScreen.classList.remove("hidden");
+      leaderboardScreen.classList.remove("is-exiting");
+      this.startDemoRefresh();
+      this.startAttractCycle();
+      this.currentScreen = "leaderboard";
+      this.currentScreenEl = leaderboardScreen;
+      this.refreshLedMarquee();
+      this.updateLeaderboardUX();
+      console.log("[UI] screen loaded: leaderboard");
+
+      const bannerEl = leaderboardScreen.querySelector(".lb-dark-header");
+      const bannerHeight = bannerEl ? bannerEl.offsetHeight : 291;
+      overlay.style.transition = "height 0.5s cubic-bezier(0.22, 1, 0.36, 1)";
+      overlay.style.height = `${bannerHeight}px`;
+    }, 600);
+
+    setTimeout(() => {
+      overlay.style.transition = "opacity 0.2s ease";
+      overlay.style.opacity = "0";
+    }, 1120);
+
+    setTimeout(() => {
+      overlay.remove();
+    }, 1330);
+  }
+
+  hideLeaderboardOverlayToDemo() {
+    const demoScreen = document.getElementById("screen-demo");
+    const leaderboardScreen = document.getElementById("screen-leaderboard");
+    if (!demoScreen || !leaderboardScreen) {
+      this.hideLeaderboardOverlayImmediate();
+      this.showScreen("demo");
+      this.clearLeadFormData();
+      this.startDemoRefresh();
+      this.startAttractCycle();
+      return;
+    }
+
+    this.settlePendingTransition();
+    this.clearLeaderboardOverlayTimer();
+    demoScreen.classList.remove("hidden");
+    this.clearLeadFormData();
+    this.setDemoLeaderboardVisible(false);
+    this.startDemoRefresh();
+    this.startAttractCycle();
+    leaderboardScreen.classList.remove("is-exiting");
+    void leaderboardScreen.offsetHeight;
+    leaderboardScreen.classList.add("is-exiting");
+
+    this.leaderboardOverlayTimer = setTimeout(() => {
+      leaderboardScreen.classList.add("hidden");
+      leaderboardScreen.classList.remove("is-exiting");
+      this.currentScreen = "demo";
+      this.currentScreenEl = demoScreen;
+      this.refreshLedMarquee();
+      this.updateLeaderboardUX();
+      console.log("[UI] screen loaded: demo");
+      this.leaderboardOverlayTimer = null;
+    }, this.leaderboardOverlayDurationMs + 30);
   }
 
   /**
@@ -1475,10 +1620,10 @@ class UIController {
     void button.offsetWidth; // force reflow so re-adding 'pressed' re-triggers transition
     button.classList.add("pressed");
 
-    // Remove press state after animation completes; also clean up any lingering lit classes.
+    // Wrong presses should still settle quickly even when the grid is not collapsing.
     clearTimeout(this._pressEffectTimeout);
     this._pressEffectTimeout = setTimeout(() => {
-      button.classList.remove("pressed", "lit", "lit-red");
+      button.classList.remove("pressed");
     }, 200);
   }
 
@@ -1493,6 +1638,8 @@ class UIController {
     const buttons = document.querySelectorAll("#button-grid .game-button");
 
     // Clear any previous state
+    clearTimeout(this._gridCollapseStartTimeout);
+    clearTimeout(this._gridCollapseCleanupTimeout);
     clearTimeout(this._pressEffectTimeout);
     buttons.forEach((btn) => btn.classList.remove("lit", "lit-red", "pressed"));
 
@@ -1505,6 +1652,7 @@ class UIController {
 
     // Set duration and reset to scale(0) (no transition) before starting grow
     if (grid) {
+      grid.classList.remove("grid-collapsing");
       grid.classList.remove("grid-growing");
       grid.style.setProperty("--grow-duration", `${growDurationMs}ms`);
     }
@@ -1517,29 +1665,101 @@ class UIController {
     });
   }
 
-  clearLitButton() {
+  clearLitButton(animate = false) {
     const grid = document.getElementById("button-grid");
     const buttons = document.querySelectorAll("#button-grid .game-button");
+    const totalCollapseMs = this.gridCollapseDelayMs + this.gridCollapseDurationMs;
 
-    // Leave 'pressed' class on the tapped button — emitPressEffect owns its cleanup
-    buttons.forEach((btn) => {
-      if (!btn.classList.contains("pressed")) {
-        btn.classList.remove("lit", "lit-red");
+    clearTimeout(this._gridCollapseStartTimeout);
+    clearTimeout(this._gridCollapseCleanupTimeout);
+
+    if (!animate) {
+      buttons.forEach((btn) => btn.classList.remove("lit", "lit-red", "pressed"));
+      if (grid) {
+        grid.classList.remove("grid-collapsing");
+        grid.classList.remove("grid-growing");
       }
-    });
+      return 0;
+    }
 
-    // Removing grid-growing snaps all cells to scale(0) instantly (transition: 0ms default)
-    if (grid) grid.classList.remove("grid-growing");
+    if (!grid) return totalCollapseMs;
+
+    grid.classList.remove("grid-collapsing");
+    grid.style.setProperty(
+      "--shrink-duration",
+      `${this.gridCollapseDurationMs}ms`
+    );
+
+    this._gridCollapseStartTimeout = setTimeout(() => {
+      grid.classList.remove("grid-growing");
+      grid.classList.add("grid-collapsing");
+      this._gridCollapseStartTimeout = null;
+    }, this.gridCollapseDelayMs);
+
+    this._gridCollapseCleanupTimeout = setTimeout(() => {
+      buttons.forEach((btn) => btn.classList.remove("lit", "lit-red", "pressed"));
+      grid.classList.remove("grid-collapsing");
+      this._gridCollapseCleanupTimeout = null;
+    }, totalCollapseMs);
+
+    return totalCollapseMs;
   }
 
   prepareGameScreen() {
     this.showScreen("game");
+    this.clearAllTickers();
     this.clearLitButton();
     this.hideMissedOverlay();
     this.showGameStatus("START!!", "good");
   }
 
-  animateOdometer(elementId, nextValue) {
+  setOdometerStaticValue(el, value) {
+    if (!el) return;
+    const text = String(value);
+    let html = "";
+    for (const char of text) {
+      const blankClass = char === " " ? " is-blank" : "";
+      html += `<span class="odometer-digit${blankClass}"><span class="odometer-digit-track"><span class="odometer-digit-slot${blankClass}">${char === " " ? "&nbsp;" : char}</span></span></span>`;
+    }
+    el.innerHTML = html;
+  }
+
+  clearOdometerTimers(el) {
+    if (!el) return;
+    if (el._odometerTintTimer) {
+      clearTimeout(el._odometerTintTimer);
+      el._odometerTintTimer = null;
+    }
+    if (el._odometerFinalizeTimer) {
+      clearTimeout(el._odometerFinalizeTimer);
+      el._odometerFinalizeTimer = null;
+    }
+    if (el._odometerCountTimer) {
+      clearTimeout(el._odometerCountTimer);
+      el._odometerCountTimer = null;
+    }
+  }
+
+  buildOdometerDigitSequence(fromChar, toChar, direction) {
+    if (fromChar === toChar) return [toChar];
+    if (fromChar === " " || toChar === " ") return [fromChar, toChar];
+
+    const start = Number(fromChar);
+    const end = Number(toChar);
+    if (!Number.isInteger(start) || !Number.isInteger(end)) return [fromChar, toChar];
+
+    const sequence = [String(start)];
+    let current = start;
+    let guard = 0;
+    while (current !== end && guard < 12) {
+      current = (current + direction + 10) % 10;
+      sequence.push(String(current));
+      guard += 1;
+    }
+    return sequence;
+  }
+
+  animateOdometer(elementId, nextValue, formatValue = null, options = {}) {
     const el = document.getElementById(elementId);
     if (!el) return;
 
@@ -1549,22 +1769,100 @@ class UIController {
       return;
     }
 
+    // If odometer effect is disabled via config, just snap to the new value.
+    if (!this.odometerEnabled) {
+      el.dataset.value = String(numeric);
+      this.clearOdometerTimers(el);
+      const formattedValue =
+        typeof formatValue === "function" ? formatValue(numeric) : numeric;
+      this.setOdometerStaticValue(el, formattedValue);
+      return;
+    }
+
+    this.clearOdometerTimers(el);
+
     const prevValue = Number(el.dataset.value || numeric);
     const delta = numeric - prevValue;
-    el.dataset.value = String(numeric);
 
-    const rollClass = delta >= 0 ? "odometer-roll-up" : "odometer-roll-down";
     const tintClass = delta > 0 ? "delta-up" : delta < 0 ? "delta-down" : "";
-
     el.classList.remove("delta-up", "delta-down");
     if (tintClass) {
       el.classList.add(tintClass);
-      setTimeout(() => {
+      el._odometerTintTimer = setTimeout(() => {
         el.classList.remove(tintClass);
-      }, 240);
+        el._odometerTintTimer = null;
+      }, 360);
     }
 
-    el.innerHTML = `<span class="odometer-inner ${rollClass}">${numeric}</span>`;
+    const fromStr = String(
+      typeof formatValue === "function" ? formatValue(prevValue) : prevValue
+    );
+    const toStr = String(
+      typeof formatValue === "function" ? formatValue(numeric) : numeric
+    );
+    const maxLen = Math.max(fromStr.length, toStr.length);
+    const fromPad = fromStr.padStart(maxLen, " ");
+    const toPad = toStr.padStart(maxLen, " ");
+    const direction = delta >= 0 ? 1 : -1;
+
+    const digitConfigs = [];
+    let maxSteps = 1;
+
+    for (let i = 0; i < maxLen; i++) {
+      const fromChar = fromPad[i];
+      const toChar = toPad[i];
+      const sequence = this.buildOdometerDigitSequence(fromChar, toChar, direction);
+      maxSteps = Math.max(maxSteps, sequence.length);
+      digitConfigs.push({ fromChar, toChar, sequence });
+    }
+
+    const durationMultiplier = Math.max(
+      1,
+      Number(options.durationMultiplier) || 1
+    );
+    const baseDurationMs = Math.min(
+      900,
+      Math.max(320, 220 + (maxSteps - 1) * 55)
+    );
+    const durationMs = Math.round(baseDurationMs * durationMultiplier);
+    let html = "";
+    for (const { sequence, toChar } of digitConfigs) {
+      const isBlank = toChar === " ";
+      if (sequence.length <= 1) {
+        html += `<span class="odometer-digit${isBlank ? " is-blank" : ""}"><span class="odometer-digit-track"><span class="odometer-digit-slot${isBlank ? " is-blank" : ""}">${isBlank ? "&nbsp;" : toChar}</span></span></span>`;
+        continue;
+      }
+
+      const transitionClass = direction >= 0 ? " roll-up" : " roll-down";
+      const slots = sequence
+        .map((char) => {
+          const blankClass = char === " " ? " is-blank" : "";
+          return `<span class="odometer-digit-slot${blankClass}">${char === " " ? "&nbsp;" : char}</span>`;
+        })
+        .join("");
+      html += `<span class="odometer-digit${isBlank ? " is-blank" : ""}"><span class="odometer-digit-track${transitionClass}" style="--odometer-duration:${durationMs}ms">${slots}</span></span>`;
+    }
+
+    el.innerHTML = html;
+    el.dataset.value = String(numeric);
+
+    const tracks = el.querySelectorAll(".odometer-digit-track.roll-up, .odometer-digit-track.roll-down");
+    if (tracks.length === 0) return;
+
+    requestAnimationFrame(() => {
+      tracks.forEach((track) => {
+        const steps = track.children.length;
+        if (steps <= 1) return;
+        track.style.transform = `translateY(-${((steps - 1) / steps) * 100}%)`;
+      });
+    });
+
+    el._odometerFinalizeTimer = setTimeout(() => {
+      const formattedValue =
+        typeof formatValue === "function" ? formatValue(numeric) : numeric;
+      this.setOdometerStaticValue(el, formattedValue);
+      el._odometerFinalizeTimer = null;
+    }, durationMs + 40);
   }
 
   updateTimeRemaining(seconds) {
@@ -1620,83 +1918,128 @@ class UIController {
     void items;
   }
 
-  updatePreGameCountdown(seconds) {
-    const val = Math.max(0, seconds);
-    const bgMap = { 3: "#03eabb", 2: "#fc36fe", 1: "#dfff96" };
+  showButtonTicker(buttonIndex, scoreText, timeText, tone = 'good') {
+    const buttons = document.querySelectorAll('#button-grid .game-button');
+    const button = buttons[buttonIndex];
+    if (!button) return;
 
-    if (val === 0) {
-      // Remove any stale countdown overlays left from previous ticks
-      document.querySelectorAll(".game-over-overlay").forEach((el) => el.remove());
+    const rect = button.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
 
-      // Create overlay matching the "1" state for a slide-up reveal
-      const overlay = document.createElement("div");
-      overlay.className = "game-over-overlay";
-      overlay.style.background = bgMap[1];
-      overlay.innerHTML = '<span class="countdown-number">1</span>';
-      document.body.appendChild(overlay);
+    const ticker = document.createElement('div');
+    ticker.className = `btn-ticker btn-ticker-${tone}`;
+    ticker.innerHTML =
+      `<span class="btn-ticker-score">${scoreText}</span>` +
+      `<span class="btn-ticker-time">${timeText}</span>`;
+    ticker.style.left = `${cx}px`;
+    ticker.style.top = `${cy}px`;
+    document.body.appendChild(ticker);
 
-      // Switch to game screen behind the overlay
-      this.hideAllScreens();
-      const gameScreen = document.getElementById("screen-game");
-      if (gameScreen) {
-        gameScreen.classList.remove("hidden");
-        this.currentScreen = "game";
-        this.currentScreenEl = gameScreen;
+    if (!this._activeTickers) this._activeTickers = [];
+    this._activeTickers.push(ticker);
+
+    setTimeout(() => {
+      ticker.remove();
+      if (this._activeTickers) {
+        const idx = this._activeTickers.indexOf(ticker);
+        if (idx >= 0) this._activeTickers.splice(idx, 1);
       }
+    }, 900);
+  }
 
-      // Slide overlay + tip up together to reveal the game
-      const tipEl = document.getElementById("countdown-tip-overlay");
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          overlay.style.transition = "transform 0.4s ease-in";
-          overlay.style.transform = "translateY(-100%)";
-          if (tipEl) {
-            tipEl.style.transition = "transform 0.4s ease-in";
-            tipEl.style.transform = "translateY(-100vh)";
-          }
-        });
-      });
+  clearAllTickers() {
+    if (!this._activeTickers) return;
+    this._activeTickers.forEach((t) => t.remove());
+    this._activeTickers = [];
+  }
 
-      setTimeout(() => {
-        overlay.remove();
-        if (tipEl) tipEl.remove();
-      }, 450);
-      return;
-    }
+  playCountdownIntro() {
+    const displayEl = document.getElementById("countdown-display");
+    if (!displayEl) return;
 
-    // Countdown tip disabled
+    this.countdownIntroPlayed = true;
+    displayEl.style.transition = "none";
+    displayEl.style.transform = "translateX(100%)";
 
-    // New number slides in from the right; previous overlay stays as the background
-    const overlay = document.createElement("div");
-    overlay.className = "game-over-overlay";
-    overlay.style.background = bgMap[val] || "#03eabb";
-    overlay.innerHTML = '<span class="countdown-number">' + val + "</span>";
-    document.body.appendChild(overlay);
-
-    overlay.style.transform = "translateX(100%)";
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        overlay.style.transition = "transform 0.4s ease-out";
-        overlay.style.transform = "translateX(0)";
+        displayEl.style.transition =
+          "transform 0.4s cubic-bezier(0.22, 1, 0.36, 1)";
+        displayEl.style.transform = "translateX(0)";
+      });
+    });
+  }
+
+  playCountdownExit() {
+    const displayEl = document.getElementById("countdown-display");
+    if (!displayEl) return;
+
+    const overlay = displayEl.cloneNode(true);
+    overlay.removeAttribute("id");
+    const overlayValueEl = overlay.querySelector("#pre-game-countdown-value");
+    if (overlayValueEl) overlayValueEl.removeAttribute("id");
+    overlay.classList.add("countdown-display-transition");
+    document.body.appendChild(overlay);
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        overlay.style.transition = "transform 0.45s ease-in";
+        overlay.style.transform = "translateY(-100%)";
       });
     });
 
-    // Remove any older overlays once this one fully covers the screen
-    const prev = overlay.previousElementSibling;
-    if (prev && prev.classList.contains("game-over-overlay")) {
-      setTimeout(() => prev.remove(), 420);
-    }
+    setTimeout(() => {
+      overlay.remove();
+    }, 500);
   }
 
-  showGameEnd(totalScore, avgReaction, bestReaction) {
+  updatePreGameCountdown(seconds) {
+    const val = Math.max(0, seconds);
+    const displayEl = document.getElementById("countdown-display");
+    const valueEl = document.getElementById("pre-game-countdown-value");
+    if (!displayEl || !valueEl) return;
+
+    displayEl.classList.remove("cd-teal", "cd-magenta", "cd-lime");
+    if (val >= 3) {
+      displayEl.classList.add("cd-teal");
+    } else if (val === 2) {
+      displayEl.classList.add("cd-magenta");
+    } else {
+      displayEl.classList.add("cd-lime");
+    }
+
+    if (val === 0) {
+      this.playCountdownExit();
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        this.animateOdometer("pre-game-countdown-value", val, null, {
+          durationMultiplier: 2.3,
+        });
+      });
+    });
+  }
+
+  showGameEnd(totalScore, misses, totalRounds, bestReaction) {
     // Populate results before the screen is revealed
     const finalScoreEl = document.getElementById("final-score");
-    const avgReactionEl = document.getElementById("avg-reaction");
+    const missedEl = document.getElementById("missed-display");
+    const bestReactionEl = document.getElementById("best-reaction");
     if (finalScoreEl) {
-      finalScoreEl.textContent = Number(totalScore || 0).toLocaleString();
+      const finalScore = Number(totalScore) || 0;
+      this.clearOdometerTimers(finalScoreEl);
+      finalScoreEl.dataset.value = String(finalScore);
+      this.setOdometerStaticValue(finalScoreEl, finalScore);
     }
-    if (avgReactionEl) {
-      avgReactionEl.textContent = `${Number(avgReaction || 0).toFixed(3)}sec`;
+    if (missedEl) {
+      missedEl.textContent = `${misses || 0}/${totalRounds || 0}`;
+    }
+    if (bestReactionEl) {
+      const best = Number(bestReaction || 0);
+      bestReactionEl.textContent = best > 0 ? `${best.toFixed(3)}sec` : `—`;
     }
 
     // Create the lime-green GAME OVER overlay (position: fixed, covers everything)
@@ -1709,31 +2052,30 @@ class UIController {
     overlay.style.transform = "translateX(100%)";
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        overlay.style.transition = "transform 0.4s ease-out";
+        overlay.style.transition = "transform 0.4s cubic-bezier(0.22, 1, 0.36, 1)";
         overlay.style.transform = "translateX(0)";
       });
     });
 
-    // Phase 2: Hold full-screen for 0.6s (400ms → 1000ms)
+    // Phase 2: Hold full-screen (400ms → 600ms)
 
-    // Phase 3: Switch to score screen + shrink overlay height (1000ms → 1500ms)
-    // Height animates from 100% → 291px; text stays centered and rides up with it
+    // Phase 3: Switch to score screen + shrink overlay height (600ms → 1100ms)
     setTimeout(() => {
       this.showScreen("score");
-      overlay.style.transition = "height 0.5s cubic-bezier(0.4, 0, 0.2, 1)";
+      overlay.style.transition = "height 0.5s cubic-bezier(0.22, 1, 0.36, 1)";
       overlay.style.height = "291px";
-    }, 1000);
+    }, 600);
 
-    // Phase 4: Fade out overlay, reveal banner beneath (1500ms → 1700ms)
+    // Phase 4: Fade out overlay, reveal banner beneath (1120ms → 1320ms)
     setTimeout(() => {
       overlay.style.transition = "opacity 0.2s ease";
       overlay.style.opacity = "0";
-    }, 1520);
+    }, 1120);
 
     // Phase 5: Remove overlay
     setTimeout(() => {
       overlay.remove();
-    }, 1730);
+    }, 1330);
   }
 
   updateCountdown(seconds) {
@@ -1806,6 +2148,52 @@ class UIController {
     }
   }
 
+  showTipWithOverlay() {
+    const overlay = document.createElement("div");
+    overlay.className = "game-over-overlay";
+    overlay.innerHTML =
+      '<span class="game-over-overlay-text">HOW TO PLAY</span>';
+    document.body.appendChild(overlay);
+
+    // Phase 1: Slide in from the right (0 → 400ms)
+    overlay.style.transform = "translateX(100%)";
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        overlay.style.transition = "transform 0.4s cubic-bezier(0.22, 1, 0.36, 1)";
+        overlay.style.transform = "translateX(0)";
+      });
+    });
+
+    // Phase 2: Hold full-screen (400ms → 600ms)
+
+    // Phase 3: Show tip screen underneath + shrink overlay to banner height (600ms → 1100ms)
+    setTimeout(() => {
+      this.hideAllScreens();
+      const tipScreen = document.getElementById("screen-tip");
+      if (tipScreen) {
+        tipScreen.classList.remove("hidden");
+        this.currentScreen = "tip";
+        this.currentScreenEl = tipScreen;
+      }
+      const bannerEl = document.querySelector(".tip-banner");
+      const bannerHeight = bannerEl ? bannerEl.offsetHeight : 291;
+      overlay.style.transition =
+        "height 0.5s cubic-bezier(0.22, 1, 0.36, 1)";
+      overlay.style.height = bannerHeight + "px";
+    }, 600);
+
+    // Phase 4: Fade out overlay, reveal banner beneath (1120ms → 1320ms)
+    setTimeout(() => {
+      overlay.style.transition = "opacity 0.2s ease";
+      overlay.style.opacity = "0";
+    }, 1120);
+
+    // Phase 5: Remove overlay
+    setTimeout(() => {
+      overlay.remove();
+    }, 1330);
+  }
+
   showLeadFormWithOverlay() {
     this.resetLeadFormBands();
 
@@ -1818,14 +2206,14 @@ class UIController {
     overlay.style.transform = "translateX(100%)";
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        overlay.style.transition = "transform 0.4s ease-out";
+        overlay.style.transition = "transform 0.4s cubic-bezier(0.22, 1, 0.36, 1)";
         overlay.style.transform = "translateX(0)";
       });
     });
 
-    // Phase 2: Hold full-screen (400ms → 1000ms)
+    // Phase 2: Hold full-screen (400ms → 600ms)
 
-    // Phase 3: Show lead form underneath + shrink overlay to banner height (1000ms → 1500ms)
+    // Phase 3: Show lead form underneath + shrink overlay to banner height (600ms → 1100ms)
     setTimeout(() => {
       this.hideAllScreens();
       const leadScreen = document.getElementById("screen-lead-form");
@@ -1836,22 +2224,22 @@ class UIController {
       }
       const bannerEl = document.getElementById("lead-info-banner");
       const bannerHeight = bannerEl ? bannerEl.offsetHeight : 291;
-      overlay.style.transition = "height 0.5s cubic-bezier(0.4, 0, 0.2, 1)";
+      overlay.style.transition = "height 0.5s cubic-bezier(0.22, 1, 0.36, 1)";
       overlay.style.height = bannerHeight + "px";
-    }, 1000);
+    }, 600);
 
-    // Phase 4: Fade out overlay, reveal banner beneath (1500ms → 1720ms)
+    // Phase 4: Fade out overlay, reveal banner beneath (1120ms → 1320ms)
     setTimeout(() => {
       overlay.style.transition = "opacity 0.2s ease";
       overlay.style.opacity = "0";
-    }, 1520);
+    }, 1120);
 
     // Phase 5: Remove overlay + focus first field
     setTimeout(() => {
       overlay.remove();
       const firstNameInput = document.getElementById("lead-first-name-input");
       if (firstNameInput) firstNameInput.focus({ preventScroll: true });
-    }, 1730);
+    }, 1330);
   }
 
   showIdleWarning() {

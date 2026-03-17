@@ -12,6 +12,9 @@ const CONFIG = {
 
   // ─── UI / Attract mode ──────────────────────────────────────────────────────
   ui: {
+    // When false, disables the rolling "odometer" animation for time/score and
+    // falls back to a simple numeric text update.
+    enableOdometer: true,
     // When true, the demo screen uses a pre-rendered video (`assets/attract-loop.mp4`)
     // as the background instead of the DOM-based attract bands animation.
     useVideoAttract: true,
@@ -35,35 +38,37 @@ const CONFIG = {
 
   game: {
     // ─── Session length ──────────────────────────────────────────────────────
-    sessionDurationSeconds: 45, // starting countdown (seconds)
-    maxSessionSeconds: 60, // hard cap — time bonuses can't exceed this
+    sessionDurationSeconds: 30, // starting countdown (seconds)
+    maxSessionSeconds: 45, // hard cap — time bonuses can't exceed this
 
     // ─── Spawn timing (difficulty ramp: start → end over the session) ────────
-    moleVisibleStartMs: 1800, // how long the target stays lit at the START
-    moleVisibleEndMs: 550, // how long it stays lit at MAX difficulty
-    spawnGapStartMs: 0, // gap between spawns at the START (ms)
-    spawnGapEndMs: 180, // gap between spawns at MAX difficulty (ms)
-    difficultyRampExponent: 0.65, // curve shape: <1 ramps fast early, >1 ramps fast late
+    moleVisibleStartMs: 2000, // how long the target stays lit at the START
+    moleVisibleEndMs: 600, // how long it stays lit at MAX difficulty
+    spawnGapStartMs: 450, // gap between spawns at the START (ms)
+    spawnGapEndMs: 250, // gap between spawns at MAX difficulty (ms)
+    // Difficulty uses a 3-phase curve (easy → plateau → linear ramp)
+    // defined in getDifficultyProgress(). No single exponent needed.
 
     // ─── Scoring ─────────────────────────────────────────────────────────────
-    hitScore: 300, // base points per successful tap
+    // Per-hit score uses an exponential curve: 50 (slow) → 1000 (≤0.3s)
+    // Combo multiplier = consecutive hit streak (2X, 3X, 4X…)
     missPenalty: 120, // points deducted for a miss
     wrongPressPenalty: 200, // points deducted for tapping the wrong cell
     redPressPenalty: 420, // points deducted for tapping the red trap button
 
     // ─── Time bonuses / penalties (added to / subtracted from countdown) ─────
-    timeBonusFastSec: 1.2, // time added for a "fast" hit (≤ fastHitThresholdSec)
-    timeBonusGoodSec: 0.7, // time added for a "good" hit
-    timeBonusSlowSec: 0.25, // time added for a slow hit
-    timePenaltyMissSec: 1.1, // time deducted for a miss
-    timePenaltyWrongSec: 0.8, // time deducted for a wrong press
-    timePenaltyRedSec: 1.4, // time deducted for hitting the red button
+    timeBonusFastSec: 1, // time added for a "fast" hit (≤ fastHitThresholdSec)
+    timeBonusGoodSec: 1, // time added for a "good" hit
+    timeBonusSlowSec: 0, // no time added for a slow hit
+    timePenaltyMissSec: 1, // time deducted for a miss
+    timePenaltyWrongSec: 1, // time deducted for a wrong press
+    timePenaltyRedSec: 2, // time deducted for hitting the red button
 
     // ─── Reaction time thresholds ────────────────────────────────────────────
-    fastHitThresholdSec: 0.22, // faster than this → "fast" bonus
-    goodHitThresholdSec: 0.45, // faster than this → "good" bonus (else "slow")
+    fastHitThresholdSec: 0.28, // faster than this → "fast" bonus
+    goodHitThresholdSec: 0.55, // faster than this → "good" bonus (else "slow")
     minReactionTime: 0.1, // clamp floor for reaction time recording
-    maxReactionTime: 0.8, // clamp ceiling (used for misses)
+    maxReactionTime: 1.2, // clamp ceiling — wider window so more hits earn a bonus
 
     // ─── Red trap button ─────────────────────────────────────────────────────
     redButtonsPerSession: 8, // fixed number of red traps per game session
