@@ -34,6 +34,39 @@ class ScoringSystem {
    * @param {number} reactionTime - Reaction time in seconds
    * @returns {string} Feedback message
    */
+  /**
+   * Return the reaction tier for a given average reaction time.
+   * @param {number} avgReactionSec
+   * @returns {{ tier: { sec, label }, index: number }}
+   */
+  getRating(avgReactionSec) {
+    const tiers = CONFIG.score.reactionTiers;
+    for (let i = tiers.length - 1; i >= 0; i--) {
+      if (avgReactionSec >= tiers[i].sec) return { tier: tiers[i], index: i };
+    }
+    return { tier: tiers[0], index: 0 };
+  }
+
+  /**
+   * Return the summary one-liner based on avg reaction time and mistake count.
+   * @param {number} avgReactionSec
+   * @param {number} mistakeCount
+   * @returns {string}
+   */
+  getSummaryLine(avgReactionSec, mistakeCount) {
+    const { index } = this.getRating(avgReactionSec);
+    const { fastMaxIdx, averageMaxIdx } = CONFIG.score.speedBuckets;
+    const speed = index <= fastMaxIdx ? 'fast'
+                : index <= averageMaxIdx ? 'average' : 'slow';
+    const mistakes = mistakeCount <= CONFIG.score.mistakesLowMaxCount ? 'low' : 'high';
+    const match = CONFIG.score.summaryOneLiners.find(
+      l => l.speed === speed && l.mistakes === mistakes
+    );
+    if (!match) return '';
+    const lines = match.lines;
+    return lines[Math.floor(Math.random() * lines.length)];
+  }
+
   getFeedback(reactionTime) {
     if (reactionTime < 0.2) {
       return "That was impressive!";

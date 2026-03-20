@@ -138,10 +138,11 @@ class SheetsClient {
     if (!response) {
       response = await this.request('getLeaderboard', { limit });
     }
-    if (!response || !Array.isArray(response.leaderboard)) {
-      return [];
-    }
-    return response.leaderboard;
+    const leaderboard = (response && Array.isArray(response.leaderboard))
+      ? response.leaderboard : [];
+    const globalAvgReactionSec = (response && response.globalAvgReactionSec > 0)
+      ? response.globalAvgReactionSec : 0;
+    return { leaderboard, globalAvgReactionSec };
   }
 }
 

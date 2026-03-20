@@ -217,7 +217,11 @@ class Game {
       window.ui.updateGameStats(this.hits, this.misses, this.wrongWhacks);
     }
     this.startSessionCountdown();
-    this.spawnMole(); // no gap — first mole spawns immediately
+    // Delay first spawn so the countdown exit animation (≈500 ms) clears first
+    this.moleSpawnTimeout = setTimeout(() => {
+      this.moleSpawnTimeout = null;
+      this.spawnMole();
+    }, 550);
   }
 
   randomBetween(min, max) {
@@ -421,8 +425,9 @@ class Game {
       snapshot: this.getDebugSnapshot()
     });
 
+    const growMs = Math.min(CONFIG.game.moleGrowDurationMs, visibleDuration);
     if (window.ui) {
-      window.ui.lightButton(this.activeMoleIndex, this.activeMoleType, visibleDuration);
+      window.ui.lightButton(this.activeMoleIndex, this.activeMoleType, growMs);
       if (this.activeMoleType === 'red') {
         window.ui.showGameStatus('Avoid red button!', 'bad');
       } else {
@@ -602,7 +607,16 @@ class Game {
       ]);
       window.ui.showGameStatus('Wrong button', 'bad');
     }
-    this.adjustTime(-this.timePenaltyWrongMs, 'wrong_press');
+    // Wrong press ends the round — clear the active mole and move on
+    const collapseDelayMs = window.ui ? window.ui.clearLitButton(true) : 0;
+    const sessionEnded = this.adjustTime(-this.timePenaltyWrongMs, 'wrong_press');
+    this.clearActiveMole();
+    if (!sessionEnded) {
+      this.moleSpawnTimeout = setTimeout(() => {
+        this.moleSpawnTimeout = null;
+        this.scheduleNextMole();
+      }, collapseDelayMs);
+    }
   }
 
   handleRedPress(buttonIndex) {
@@ -637,7 +651,6 @@ class Game {
         { label: 'Time', value: -Number((this.timePenaltyRedMs / 1000).toFixed(2)), type: 'bad' }
       ]);
       window.ui.showGameStatus('Red penalty!', 'bad');
-      window.ui.showRedPressOverlay();
     }
     const collapseDelayMs = window.ui ? window.ui.clearLitButton(true) : 0;
     const sessionEnded = this.adjustTime(-this.timePenaltyRedMs, 'red_press');
@@ -661,11 +674,14 @@ class Game {
         snapshotAfterAvoid: this.getDebugSnapshot()
       });
       if (window.ui) {
-        window.ui.clearLitButton();
         window.ui.showGameStatus('Good avoid!', 'good');
       }
+      const collapseDelayMs = window.ui ? window.ui.clearLitButton(true) : 0;
       this.clearActiveMole();
-      this.scheduleNextMole();
+      this.moleSpawnTimeout = setTimeout(() => {
+        this.moleSpawnTimeout = null;
+        this.scheduleNextMole();
+      }, collapseDelayMs);
       return;
     }
 
@@ -688,8 +704,6 @@ class Game {
         'COMBO RESET',
         'bad'
       );
-      window.ui.clearLitButton();
-      window.ui.showMissedOverlay(700);
       window.ui.updateScore(this.score);
       window.ui.updateGameStats(this.hits, this.misses, this.wrongWhacks);
       window.ui.animateScoreBreakdown([
@@ -700,11 +714,15 @@ class Game {
       ]);
       window.ui.showGameStatus('Missed', 'slow');
     }
+    const collapseDelayMs = window.ui ? window.ui.clearLitButton(true) : 0;
     const sessionEnded = this.adjustTime(-this.timePenaltyMissMs, 'miss');
     if (sessionEnded) return;
 
     this.clearActiveMole();
-    this.scheduleNextMole();
+    this.moleSpawnTimeout = setTimeout(() => {
+      this.moleSpawnTimeout = null;
+      this.scheduleNextMole();
+    }, collapseDelayMs);
   }
 
   clearActiveMole() {
@@ -747,9 +765,13 @@ class Game {
     const bestReaction = this.reactionTimes.length > 0
       ? Math.min(...this.reactionTimes)
       : 0;
+    const avgReaction = this.reactionTimes.length > 0
+      ? this.reactionTimes.reduce((a, b) => a + b, 0) / this.reactionTimes.length
+      : 0;
 
     if (window.ui) {
-      window.ui.showGameEnd(this.score, this.misses, this.molesSpawned, bestReaction);
+      const totalMistakes = this.misses + this.wrongWhacks;
+      window.ui.showGameEnd(this.score, totalMistakes, this.molesSpawned, bestReaction, avgReaction);
     }
     this.setState(window.GameState.SHOW_SCORE);
   }
@@ -998,8 +1020,9 @@ class Game {
 
   async getRemoteLeaderboard(limit = 10) {
     try {
-      const sheetsLeaderboard = await this.sheets.getLeaderboard(limit);
-      const remoteRows = Array.isArray(sheetsLeaderboard) ? sheetsLeaderboard : [];
+      const sheetsResult = await this.sheets.getLeaderboard(limit);
+      const remoteRows = Array.isArray(sheetsResult.leaderboard) ? sheetsResult.leaderboard : [];
+      const globalAvgSec = sheetsResult.globalAvgReactionSec || 0;
 
       if (remoteRows.length > 0) {
         this.localStorage.setCachedRemoteLeaderboard(remoteRows);
@@ -1007,6 +1030,10 @@ class Game {
         // Keep empty only when there is no existing cache to avoid replacing valid cache
         // during transient endpoint failures that return empty arrays.
         this.localStorage.setCachedRemoteLeaderboard([]);
+      }
+
+      if (globalAvgSec > 0) {
+        this.localStorage.setGlobalAvgReactionSec(globalAvgSec);
       }
 
       return remoteRows;

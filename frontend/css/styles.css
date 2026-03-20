@@ -443,10 +443,6 @@ body {
 }
 
 .back-top-btn {
-  position: fixed;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: var(--nav-btn-bottom);
   z-index: 5;
 }
 
@@ -707,7 +703,6 @@ body {
   flex: 1;
   display: flex;
   align-items: flex-end;
-  justify-content: center;
   padding-bottom: clamp(16px, 5vh, 60px);
 }
 
@@ -716,6 +711,11 @@ body {
   flex-direction: column;
   background: #000;
   overflow: hidden;
+  /* Fixed .nav-play-btn sits on the viewport bottom — keep flex content above it */
+  padding-bottom: calc(
+    env(safe-area-inset-bottom, 0px) + 2 * clamp(28px, 4.5vh, 52px) +
+      clamp(24px, 3.2vw, 40px) + 2px
+  );
 }
 
 .score-game-over-banner {
@@ -747,9 +747,123 @@ body {
   box-sizing: border-box;
 }
 
-.score-band-points { background: #03eabb; }
-.score-band-missed { background: #fc36fe; }
-.score-band-best { background: #b2ff00; }
+.score-band-points   { background: #03eabb; }
+.score-band-results  { background: #fc36fe; height: auto; min-height: var(--section-band-height); overflow: visible; padding-bottom: clamp(40px, 12vw, 60px); }
+
+/* Fills viewport from results down to NEXT — flex column on .screen-score */
+.score-band.score-band-summary {
+  background: #b2ff00;
+  flex: 1 1 0;
+  min-height: 0;
+  height: auto;
+  flex-shrink: 1;
+  overflow: hidden;
+  justify-content: flex-start;
+  gap: clamp(6px, 1.2vh, 16px);
+}
+
+.score-band-summary .score-band-label {
+  flex-shrink: 0;
+}
+
+.score-band-summary .score-summary-wrap {
+  flex: 1 1 0;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+  overflow: hidden;
+}
+
+/* ── Results stat strip ─────────────────────────────────────────────── */
+.score-results-stats {
+  display: flex;
+  justify-content: flex-end;
+  gap: clamp(12px, 4vw, 56px);
+  padding: clamp(6px, 1.5vw, 20px) 0 clamp(4px, 1vw, 14px);
+}
+.score-results-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: clamp(2px, 0.4vw, 6px);
+  text-align: right;
+}
+.score-results-stat-label {
+  font-family: var(--font-mono);
+  font-size: clamp(10px, 1.6vw, 22px);
+  letter-spacing: -0.03em;
+  text-transform: uppercase;
+  color: #000;
+}
+.score-results-stat-value {
+  font-family: var(--font-schrifted);
+  font-size: clamp(26px, 5.5vw, 80px);
+  letter-spacing: -0.05em;
+  line-height: 1;
+  color: #000;
+}
+.score-results-stat-value--dim { opacity: 0.4; }
+
+/* ── Ruler ──────────────────────────────────────────────────────────── */
+.score-ruler-wrap {
+  position: relative;
+  width: 100%;
+  padding-top: clamp(18px, 3.5vw, 42px);
+}
+.score-ruler-marker {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  font-size: clamp(12px, 2vw, 26px);
+  line-height: 1;
+  pointer-events: none;
+  color: #000;
+}
+.score-ruler {
+  display: grid;
+  border-top: 4px solid #000;
+  padding-top: clamp(4px, 0.8vw, 10px);
+}
+.score-ruler-tick {
+  font-family: var(--font-mono);
+  font-size: clamp(10px, 1.5vw, 20px);
+  justify-self: center;
+  text-align: center;
+  line-height: 1;
+  color: #000;
+}
+.score-ruler-tick--active { font-weight: 700; }
+
+/* ── Tier labels (rotated below ruler) ──────────────────────────────── */
+.score-ruler-tiers {
+  display: grid;
+  width: 100%;
+  height: clamp(60px, 10vw, 120px);
+  overflow: visible;
+}
+.score-ruler-tier-slot {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.score-ruler-tier-label {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform-origin: top left;
+  transform: rotate(45deg);
+  font-family: 'SFT Schrifted Sans';
+  font-size: clamp(12px, 2vw, 28px);
+  line-height: 1;
+  white-space: nowrap;
+  opacity: 0.5;
+  pointer-events: none;
+  color: #000;
+}
+.score-ruler-tier-label--active {
+  opacity: 1;
+  font-size: clamp(14px, 2.4vw, 34px);
+}
 
 .score-band-label {
   font-family: var(--font-mono);
@@ -770,27 +884,23 @@ body {
   line-height: 1;
 }
 
-.score-band-value.odometer {
-  display: flex;
+/* Summary quote — same display size as SCORE; _fitScoreSummaryFont scales down if it overflows */
+.score-band-value.score-summary-value {
+  display: block;
   width: 100%;
-  justify-content: flex-end;
+  font-size: clamp(48px, 17vw, 184px);
+  text-align: right;
+  line-height: 1.08;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
-.score-cta-area {
-  flex: 1;
-  min-height: 0;
-  padding: clamp(16px, 3vh, 60px) clamp(18px, 5.2vw, 98px);
-  display: flex;
-  align-items: flex-start;
+.score-band-value.score-summary-value::before {
+  content: '"';
 }
 
-.score-cta-text {
-  font-family: var(--font-schrifted);
-  font-weight: 500;
-  font-size: clamp(20px, 5.9vw, 64px);
-  color: #fff;
-  letter-spacing: -0.05em;
-  line-height: 1.2;
+.score-band-value.score-summary-value::after {
+  content: '"';
 }
 
 .score-actions {
@@ -800,8 +910,10 @@ body {
   flex-shrink: 0;
 }
 
-.score-next-btn {
-  width: var(--nav-btn-width);
+/* NEXT stays fixed; no in-flow height from the button — reserve handled on .screen-score */
+.screen-score .score-actions {
+  padding-bottom: 0;
+  min-height: 0;
 }
 
 /* ── Button Ticker ──────────────────────────────────────── */
@@ -1074,13 +1186,8 @@ body {
   pointer-events: none;
 }
 
-.lead-back-btn {
-  width: var(--nav-btn-width);
-  background: rgba(255, 255, 255, 0.82);
-  border-color: rgba(255, 255, 255, 0.72);
-}
-
-#lead-submit-btn {
+#lead-submit-btn,
+#lead-back-btn {
   pointer-events: auto;
 }
 
@@ -1214,7 +1321,7 @@ body {
 
 /* Grid container — full width, fills remaining screen height */
 .screen-main-game {
-  padding: 0;
+  padding: 2px 0 0;
   align-items: stretch;
   justify-content: flex-start;
   flex-direction: column;
@@ -1229,7 +1336,7 @@ body {
   aspect-ratio: auto;
   grid-template-columns: repeat(6, 1fr);
   grid-auto-rows: 1fr;
-  gap: 0;
+  gap: 2px;
   margin: 0;
   max-width: none;
 }
@@ -1242,7 +1349,7 @@ body {
    ────────────────────────────────────────────────────────────── */
 .isc-button-grid .game-button {
   border-radius: 0;
-  background: #d1d1d1;
+  background: #636368;
   border: none;
   transform: scale(0);
   transition: transform 0ms; /* instant snap back between spawns */
@@ -1259,6 +1366,7 @@ body {
 /* Target button — lime green with glow */
 .isc-button-grid .game-button.lit {
   background: #b2ff00;
+  z-index: 1;
   box-shadow:
     0 0 18px 4px rgba(178, 255, 0, 0.6),
     0 0 60px 12px rgba(178, 255, 0, 0.35),
@@ -1268,15 +1376,16 @@ body {
 /* Red trap button with glow */
 .isc-button-grid .game-button.lit-red {
   background: #fc36fe;
+  z-index: 1;
   box-shadow:
     0 0 18px 4px rgba(252, 54, 254, 0.6),
     0 0 60px 12px rgba(252, 54, 254, 0.35),
     0 0 120px 30px rgba(252, 54, 254, 0.15);
 }
 
-/* Press feedback: pop slightly bigger, no glow ripple */
+/* Press feedback: shrink slightly on tap */
 .isc-button-grid .game-button.pressed {
-  transform: scale(1.08) !important;
+  transform: scale(0.92) !important;
   transition: transform 80ms ease-out !important;
   box-shadow: none !important;
 }
@@ -1501,32 +1610,72 @@ body {
 /* "PLAY" button — always on top of both attract and demo-lb-panel */
 .demo-play-btn {
   z-index: 10;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.demo-play-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28em;
+}
+
+.demo-play-arrow {
+  display: inline-block;
+  animation: demoPlayArrowNudge 1.15s ease-in-out infinite;
+}
+
+@keyframes demoPlayArrowNudge {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(8px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .demo-play-arrow {
+    animation: none;
+  }
 }
 
 .nav-play-btn {
   position: fixed;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: var(--nav-btn-bottom);
-  width: var(--nav-btn-width);
-  background: rgba(255, 255, 255, 0.666);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: rgba(220, 220, 220, 0.85);
+  backdrop-filter: blur(12px);  
   color: #000;
-  border: 2px solid rgba(255, 255, 255, 0.4);
+  border: none;
+  border-top: 2px solid rgba(255, 255, 255, 0.4);
+  border-radius: 0;
   font-family: var(--font-mono);
   font-size: clamp(1.4rem, 3vw, 2.4rem);
   letter-spacing: 0.1em;
-  padding: clamp(18px, 3vh, 32px) 0;
-  border-radius: 6px;
+  text-align: right;
+  padding: clamp(28px, 4.5vh, 52px) clamp(18px, 5vw, 44px);
   cursor: pointer;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
 
+.nav-back-btn {
+  width: 50%;
+  text-align: left;
+  border-right: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+.nav-back-btn + .nav-play-btn {
+  width: 50%;
+  left: 50%;
+}
+
 .nav-play-btn:active {
   opacity: 0.85;
-  transform: translateX(-50%);
 }
 
 /* ============================================================
@@ -1711,10 +1860,6 @@ body {
 /* HOME button — floats above leaderboard list */
 .lb-home-btn {
   z-index: 5;
-}
-
-#lead-back-btn {
-  bottom: calc(var(--nav-btn-bottom) + var(--nav-btn-stack-gap));
 }
 
 @media (max-height: 760px) {

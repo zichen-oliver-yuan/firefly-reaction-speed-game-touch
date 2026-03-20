@@ -239,6 +239,11 @@ class UIController {
       console.log(`[UI] screen loaded: ${screenId}`);
       this.refreshLedMarquee();
       this.updateLeaderboardUX();
+      if (screenId === "score") {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => this._fitScoreSummaryFont());
+        });
+      }
       return;
     }
 
@@ -303,6 +308,11 @@ class UIController {
     this.refreshLedMarquee();
     this.updateLeaderboardUX();
     console.log(`[UI] screen loaded: ${screenId}`);
+    if (screenId === "score") {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => this._fitScoreSummaryFont());
+      });
+    }
   }
 
   setupLeaderboardUX() {
@@ -493,8 +503,43 @@ class UIController {
     this.onResize = () => {
       this.attractMeasurementsCache = null;
       this.refreshLedMarquee();
+      if (this.currentScreen === "score") {
+        this._fitScoreSummaryFont();
+      }
     };
     window.addEventListener("resize", this.onResize);
+  }
+
+  /** Shrink #score-summary when it overflows the lime summary area (flex-filled above NEXT). */
+  _fitScoreSummaryFont() {
+    const el = document.getElementById("score-summary");
+    const wrap = el && el.closest(".score-summary-wrap");
+    const screen = document.getElementById("screen-score");
+    if (!el || !wrap || !screen || screen.classList.contains("hidden")) {
+      return;
+    }
+
+    el.style.removeProperty("font-size");
+
+    const capH = wrap.clientHeight;
+    const capW = wrap.clientWidth;
+    if (capH < 8 || capW < 8) {
+      return;
+    }
+
+    let px = parseFloat(window.getComputedStyle(el).fontSize);
+    if (!Number.isFinite(px) || px < 1) {
+      return;
+    }
+
+    const minPx = 14;
+    while (
+      px > minPx &&
+      (el.scrollHeight > capH + 1 || el.scrollWidth > capW + 1)
+    ) {
+      px -= 1;
+      el.style.fontSize = `${px}px`;
+    }
   }
 
   refreshLedMarquee() {
@@ -2023,23 +2068,46 @@ class UIController {
     });
   }
 
-  showGameEnd(totalScore, misses, totalRounds, bestReaction) {
-    // Populate results before the screen is revealed
+  showGameEnd(totalScore, misses, totalRounds, bestReaction, avgReaction) {
+    void totalRounds; void bestReaction; // kept for API compatibility
+
+    // SCORE band
     const finalScoreEl = document.getElementById("final-score");
-    const missedEl = document.getElementById("missed-display");
-    const bestReactionEl = document.getElementById("best-reaction");
     if (finalScoreEl) {
       const finalScore = Number(totalScore) || 0;
-      this.clearOdometerTimers(finalScoreEl);
       finalScoreEl.dataset.value = String(finalScore);
-      this.setOdometerStaticValue(finalScoreEl, finalScore);
+      finalScoreEl.textContent = String(finalScore);
     }
-    if (missedEl) {
-      missedEl.textContent = `${misses || 0}/${totalRounds || 0}`;
-    }
-    if (bestReactionEl) {
-      const best = Number(bestReaction || 0);
-      bestReactionEl.textContent = best > 0 ? `${best.toFixed(3)}sec` : `—`;
+
+    // RESULTS band
+    const avg = Number(avgReaction || 0);
+    const cfg = CONFIG.score;
+    const cachedGlobalAvg = (window.game && window.game.localStorage)
+      ? window.game.localStorage.getGlobalAvgReactionSec() : 0;
+    const benchmarkSec = cachedGlobalAvg > 0 ? cachedGlobalAvg : cfg.benchmarkFallbackSec;
+
+    const mistakesEl  = document.getElementById("results-mistakes");
+    const avgEl       = document.getElementById("results-avg-reaction");
+    const benchEl     = document.getElementById("results-benchmark");
+    const benchLblEl  = document.getElementById("results-benchmark-label");
+
+    if (mistakesEl)  mistakesEl.textContent  = String(misses || 0);
+    if (avgEl)       avgEl.textContent       = avg > 0 ? `${avg.toFixed(3)}sec` : "—";
+    if (benchEl)     benchEl.textContent     = benchmarkSec > 0 ? `${benchmarkSec.toFixed(3)}sec` : "—";
+    if (benchLblEl)  benchLblEl.textContent  = cfg.benchmarkLabel || "BENCHMARK";
+
+    this._buildReactionRuler(avg);
+
+    // SUMMARY band
+    const summaryEl = document.getElementById("score-summary");
+    if (summaryEl) {
+      summaryEl.style.removeProperty("font-size");
+      if (window.game && window.game.scoring && avg > 0) {
+        summaryEl.textContent = window.game.scoring.getSummaryLine(
+          avg,
+          misses || 0
+        );
+      }
     }
 
     // Create the lime-green GAME OVER overlay (position: fixed, covers everything)
@@ -2075,7 +2143,73 @@ class UIController {
     // Phase 5: Remove overlay
     setTimeout(() => {
       overlay.remove();
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => this._fitScoreSummaryFont());
+      });
     }, 1330);
+  }
+
+  _buildReactionRuler(avgSec) {
+    const ruler   = document.getElementById("score-ruler");
+    const marker  = document.getElementById("score-ruler-marker");
+    const tiersEl = document.getElementById("score-ruler-tiers");
+    if (!ruler || !marker || !tiersEl) return;
+
+    const tiers  = CONFIG.score.reactionTiers;
+    const gridTemplate = `repeat(${tiers.length}, minmax(0, 1fr))`;
+
+    ruler.style.gridTemplateColumns = gridTemplate;
+    tiersEl.style.gridTemplateColumns = gridTemplate;
+
+    // One tick per tier
+    ruler.innerHTML = "";
+    const activeRating = (avgSec > 0 && window.game && window.game.scoring)
+      ? window.game.scoring.getRating(avgSec) : null;
+
+    for (let i = 0; i < tiers.length; i++) {
+      const t = tiers[i];
+      const tick = document.createElement("span");
+      tick.className = "score-ruler-tick";
+      tick.textContent = t.sec.toFixed(1);
+      if (activeRating && activeRating.index === i) tick.classList.add("score-ruler-tick--active");
+      ruler.appendChild(tick);
+    }
+
+    // Tier labels below ticks
+    tiersEl.innerHTML = "";
+    for (let i = 0; i < tiers.length; i++) {
+      const t = tiers[i];
+      const slot = document.createElement("span");
+      slot.className = "score-ruler-tier-slot";
+      const lbl = document.createElement("span");
+      lbl.className = "score-ruler-tier-label";
+      if (activeRating && activeRating.index === i) lbl.classList.add("score-ruler-tier-label--active");
+      lbl.textContent = t.label;
+      slot.appendChild(lbl);
+      tiersEl.appendChild(slot);
+    }
+
+    // Position marker by interpolating between grid column centers.
+    // Equal 1fr columns → tick i center sits at (i + 0.5) / N of the ruler width.
+    if (avgSec > 0) {
+      const N = tiers.length;
+      const centerPct = i => ((i + 0.5) / N) * 100;
+      let pct;
+      if (avgSec <= tiers[0].sec) {
+        pct = centerPct(0);
+      } else if (avgSec >= tiers[N - 1].sec) {
+        pct = centerPct(N - 1);
+      } else {
+        for (let i = 0; i < N - 1; i++) {
+          if (avgSec >= tiers[i].sec && avgSec < tiers[i + 1].sec) {
+            const frac = (avgSec - tiers[i].sec) / (tiers[i + 1].sec - tiers[i].sec);
+            pct = centerPct(i) + (frac / N) * 100;
+            break;
+          }
+        }
+      }
+      if (pct != null) marker.style.left = `${pct}%`;
+    }
   }
 
   updateCountdown(seconds) {

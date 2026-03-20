@@ -171,6 +171,13 @@ function setupEventHandlers() {
     }
   });
 
+  const tipBackBtn = document.getElementById('tip-back-btn');
+  bindPress(tipBackBtn, () => {
+    if (window.game) {
+      window.game.setState(window.GameState.DEMO);
+    }
+  });
+
   const tipReadyBtn = document.getElementById('tip-ready-btn');
   bindPress(tipReadyBtn, () => {
     if (window.game) {
@@ -185,6 +192,13 @@ function setupEventHandlers() {
       leadFormSkipPressesRemaining = null;
       window.ui.clearLeadFormError();
       window.game.setState(window.GameState.LEAD_FORM);
+    }
+  });
+
+  const leadBackBtn = document.getElementById('lead-back-btn');
+  bindPress(leadBackBtn, () => {
+    if (window.game) {
+      window.game.setState(window.GameState.SHOW_SCORE);
     }
   });
 
