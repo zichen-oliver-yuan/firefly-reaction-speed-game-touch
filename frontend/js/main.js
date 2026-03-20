@@ -58,6 +58,19 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log(`[attract] DOM bands: ${next ? 'ON' : 'OFF'}`);
   };
 
+  window.setIncandescentMode = (enabled) => {
+    if (window.ui) {
+      window.ui.setIncandescentMode(enabled);
+    }
+    console.log(`[game] incandescent mode: ${enabled ? 'ON' : 'OFF'}`);
+  };
+
+  window.setSoundEffects = (enabled) => {
+    if (window.game && window.game.sound) {
+      window.game.sound.setEnabled(enabled);
+    }
+  };
+
   window.ui = new UIController();
   window.game = new Game();
 
@@ -151,16 +164,46 @@ function setupEventHandlers() {
   const bindPress = (element, handler) => {
     if (!element) return;
     let lastPressTs = 0;
+    let active = false;
+    let downRect = null;  // rect captured before scale shrink
 
-    const run = (event) => {
+    element.addEventListener('pointerdown', (event) => {
       const now = Date.now();
       if (now - lastPressTs < 280) return;
-      lastPressTs = now;
       event.preventDefault();
-      handler(event);
-    };
+      // Capture rect BEFORE .pressing shrinks the element
+      downRect = element.getBoundingClientRect();
+      active = true;
+      element.classList.add('pressing');
+      element.setPointerCapture(event.pointerId);
+    });
 
-    element.addEventListener('pointerdown', run);
+    element.addEventListener('pointerup', (event) => {
+      element.classList.remove('pressing');
+      if (!active) return;
+      active = false;
+      lastPressTs = Date.now();
+      const rect = downRect || element.getBoundingClientRect();
+      downRect = null;
+      if (event.clientX >= rect.left && event.clientX <= rect.right &&
+          event.clientY >= rect.top && event.clientY <= rect.bottom) {
+        handler(event);
+      }
+    });
+
+    element.addEventListener('pointermove', (event) => {
+      if (!active) return;
+      const rect = downRect || element.getBoundingClientRect();
+      const inside = event.clientX >= rect.left && event.clientX <= rect.right &&
+                     event.clientY >= rect.top && event.clientY <= rect.bottom;
+      element.classList.toggle('pressing', inside);
+    });
+
+    element.addEventListener('pointercancel', () => {
+      active = false;
+      downRect = null;
+      element.classList.remove('pressing');
+    });
   };
 
   const demoStartBtn = document.getElementById('demo-start-btn');

@@ -54,6 +54,7 @@ class UIController {
     this.countdownIntroPlayed = false;
     this.gridCollapseDelayMs = 120;
     this.gridCollapseDurationMs = 240;
+    this.incandescentMode = !!CONFIG.ui.useIncandescentMode;
 
     // Attract cycle timers (multi-step: reveal → grow → scroll → grid → lb → repeat)
     this.attractTimers = [];
@@ -1304,6 +1305,18 @@ class UIController {
       button.setAttribute("aria-label", `Button ${i + 1}`);
       grid.appendChild(button);
     }
+
+    if (this.incandescentMode) {
+      grid.classList.add("incandescent-mode");
+    }
+  }
+
+  setIncandescentMode(enabled) {
+    this.incandescentMode = !!enabled;
+    const grid = document.getElementById("button-grid");
+    if (grid) {
+      grid.classList.toggle("incandescent-mode", this.incandescentMode);
+    }
   }
 
   /** Flash the MISSED! overlay for a short duration. */
@@ -1686,7 +1699,8 @@ class UIController {
     clearTimeout(this._gridCollapseStartTimeout);
     clearTimeout(this._gridCollapseCleanupTimeout);
     clearTimeout(this._pressEffectTimeout);
-    buttons.forEach((btn) => btn.classList.remove("lit", "lit-red", "pressed"));
+    clearTimeout(this._incandescentFadeTimeout);
+    buttons.forEach((btn) => btn.classList.remove("lit", "lit-red", "pressed", "fading"));
 
     // Mark target button
     if (buttons[buttonIndex]) {
@@ -1694,6 +1708,9 @@ class UIController {
     }
 
     this.hideMissedOverlay();
+
+    // Incandescent mode: buttons are always visible, CSS transitions handle the glow
+    if (this.incandescentMode) return;
 
     // Set duration and reset to scale(0) (no transition) before starting grow
     if (grid) {
@@ -1717,14 +1734,29 @@ class UIController {
 
     clearTimeout(this._gridCollapseStartTimeout);
     clearTimeout(this._gridCollapseCleanupTimeout);
+    clearTimeout(this._incandescentFadeTimeout);
 
     if (!animate) {
-      buttons.forEach((btn) => btn.classList.remove("lit", "lit-red", "pressed"));
+      buttons.forEach((btn) => btn.classList.remove("lit", "lit-red", "pressed", "fading"));
       if (grid) {
         grid.classList.remove("grid-collapsing");
         grid.classList.remove("grid-growing");
       }
       return 0;
+    }
+
+    // Incandescent mode: fade out the lit button instead of collapsing the grid
+    if (this.incandescentMode) {
+      buttons.forEach((btn) => {
+        if (btn.classList.contains("lit") || btn.classList.contains("lit-red")) {
+          btn.classList.add("fading");
+        }
+      });
+      this._incandescentFadeTimeout = setTimeout(() => {
+        buttons.forEach((btn) => btn.classList.remove("lit", "lit-red", "pressed", "fading"));
+        this._incandescentFadeTimeout = null;
+      }, 300);
+      return 300;
     }
 
     if (!grid) return totalCollapseMs;
@@ -1963,23 +1995,19 @@ class UIController {
     void items;
   }
 
-  showButtonTicker(buttonIndex, scoreText, timeText, tone = 'good') {
+  showButtonTicker(buttonIndex, label, scoreText, timeText, streakText, tone = 'good') {
     const buttons = document.querySelectorAll('#button-grid .game-button');
     const button = buttons[buttonIndex];
     if (!button) return;
 
-    const rect = button.getBoundingClientRect();
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
-
     const ticker = document.createElement('div');
     ticker.className = `btn-ticker btn-ticker-${tone}`;
     ticker.innerHTML =
+      `<span class="btn-ticker-label">${label}</span>` +
+      `<span class="btn-ticker-time">${timeText}</span>` +
       `<span class="btn-ticker-score">${scoreText}</span>` +
-      `<span class="btn-ticker-time">${timeText}</span>`;
-    ticker.style.left = `${cx}px`;
-    ticker.style.top = `${cy}px`;
-    document.body.appendChild(ticker);
+      `<span class="btn-ticker-streak">${streakText}</span>`;
+    button.appendChild(ticker);
 
     if (!this._activeTickers) this._activeTickers = [];
     this._activeTickers.push(ticker);

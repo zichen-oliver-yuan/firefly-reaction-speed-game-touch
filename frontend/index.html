@@ -107,15 +107,18 @@
         </div>
         <div class="tip-band tip-band-lime">
           <span class="tip-band-number">1</span>
-          <span class="tip-band-body">Tap the green button as fast as you can.</span>
+          <span class="tip-band-body">Tap greens. Fast.</span>
         </div>
         <div class="tip-band tip-band-pink">
           <span class="tip-band-number">2</span>
-          <span class="tip-band-body">Avoid red buttons.</span>
+          <span class="tip-band-body">Avoid reds.</span>
         </div>
         <div class="tip-band tip-band-teal">
           <span class="tip-band-number">3</span>
-          <span class="tip-band-body">Combo for consecutive good hits.</span>
+          <span class="tip-band-body">Keep your streak alive.</span>
+        </div>
+        <div id="tip-countdown" class="tip-countdown">
+          Game starts in <span id="tip-countdown-value">5</span> second(s)
         </div>
         <div class="tip-actions">
           <button id="tip-back-btn" class="nav-play-btn nav-back-btn">
@@ -237,7 +240,7 @@
           <span class="lead-band-label">FIRST NAME</span>
           <div class="lead-band-value-row">
             <span class="lead-band-typed" id="lead-firstname-display"></span
-            ><span class="lead-band-placeholder">John</span
+            ><span class="lead-band-placeholder">Usain</span
             ><span class="lead-band-cursor"></span>
           </div>
         </div>
@@ -247,7 +250,7 @@
           <span class="lead-band-label">LAST NAME</span>
           <div class="lead-band-value-row">
             <span class="lead-band-typed" id="lead-lastname-display"></span
-            ><span class="lead-band-placeholder">Doe</span
+            ><span class="lead-band-placeholder">Bolt</span
             ><span class="lead-band-cursor"></span>
           </div>
         </div>
@@ -352,6 +355,7 @@
     <script src="js/touch-keyboard.js?v=19"></script>
     <script src="js/sheets.js?v=19"></script>
     <script src="js/local-storage.js?v=19"></script>
+    <script src="js/sound.js?v=19"></script>
     <script src="js/game.js?v=19"></script>
     <script src="js/ui.js?v=19"></script>
     <script src="js/main.js?v=19"></script>

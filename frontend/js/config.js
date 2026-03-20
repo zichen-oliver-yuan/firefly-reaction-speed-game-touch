@@ -22,6 +22,9 @@ const CONFIG = {
     // video is disabled. This is useful if you only ever want the static demo shell
     // without the animated bands.
     disableDomAttractBands: true,
+    // When true, buttons stay permanently visible and light up with an incandescent
+    // bulb effect (color radiates from center) instead of the grow/collapse animation.
+    useIncandescentMode: true,
     // Ms to hold on the first frame between video loop replays (video attract mode).
     attractVideoHoldMs: 2000,
     // Ambient leaderboard scrolling (primarily used on the demo screen).
@@ -88,6 +91,9 @@ const CONFIG = {
     idleWarningThresholdSeconds: 20,
     idleWarningCountdownSeconds: 20,
 
+    // ─── Sound effects ───────────────────────────────────────────────────────
+    enableSoundEffects: true, // master toggle for all in-game sound effects
+
     // ─── Leaderboard auto-advance ────────────────────────────────────────────
     leaderboardCountdownEnabled: true,
     leaderboardCountdownIdleDelayMs: 5000, // delay before countdown starts (ms)
@@ -100,7 +106,7 @@ const CONFIG = {
     // whose sec ≤ avgReaction < next tier's sec. Last tier is catch-all (≥ its sec).
     // Ruler range is derived from first and last tier's sec.
     reactionTiers: [
-      { sec: 0.2, label: 'Cheating??' },
+      { sec: 0.4, label: 'Cheating??' },
       { sec: 0.3, label: 'Superhuman' },
       { sec: 0.4, label: 'F1 Driver' },
       { sec: 0.5, label: 'Overachiever' },
