@@ -93,8 +93,11 @@
         </div>
 
         <!-- PLAY button always on top -->
-        <button id="demo-start-btn" class="demo-play-btn nav-play-btn">
-          PLAY
+        <button id="demo-start-btn" class="demo-play-btn nav-play-btn" type="button">
+          <span class="demo-play-inner">
+            <span class="demo-play-text">PLAY</span>
+            <span class="demo-play-arrow" aria-hidden="true">→</span>
+          </span>
         </button>
       </section>
 
@@ -102,21 +105,28 @@
         <div class="tip-banner">
           <span class="tip-banner-text">HOW TO PLAY</span>
         </div>
-        <div class="tip-band tip-band-teal">
+        <div class="tip-band tip-band-lime">
           <span class="tip-band-number">1</span>
-          <span class="tip-band-body">Tap the green button fast for more points.</span>
+          <span class="tip-band-body">Tap greens. Fast.</span>
         </div>
         <div class="tip-band tip-band-pink">
           <span class="tip-band-number">2</span>
-          <span class="tip-band-body">Avoid red buttons — they reset your combo.</span>
+          <span class="tip-band-body">Avoid reds.</span>
         </div>
-        <div class="tip-band tip-band-lime">
+        <div class="tip-band tip-band-teal">
           <span class="tip-band-number">3</span>
-          <span class="tip-band-body">Hit consecutively to build combo multiplier.</span>
+          <span class="tip-band-body">Keep your streak alive.</span>
+        </div>
+        <div id="tip-countdown" class="tip-countdown">
+          Game starts in <span id="tip-countdown-value">5</span> second(s)
         </div>
         <div class="tip-actions">
+          <button id="tip-back-btn" class="nav-play-btn nav-back-btn">
+            ← BACK
+          </button>
           <button id="tip-ready-btn" class="score-next-btn nav-play-btn">
-READY          </button>
+            READY →
+          </button>
         </div>
       </section>
 
@@ -182,27 +192,39 @@ READY          </button>
         </div>
         <div class="score-band score-band-points">
           <span class="score-band-label">SCORE</span>
-          <span id="final-score" class="score-band-value odometer" data-value="0"
-            ><span class="odometer-digit"><span class="odometer-digit-track"><span class="odometer-digit-slot">0</span></span></span></span
-          >
+          <span id="final-score" class="score-band-value" data-value="0">0</span>
         </div>
-        <div class="score-band score-band-missed">
-          <span class="score-band-label">MISSED</span>
-          <span id="missed-display" class="score-band-value">0/0</span>
+        <div class="score-band score-band-results">
+          <span class="score-band-label">RESULTS</span>
+          <div class="score-results-stats">
+            <div class="score-results-stat">
+              <span class="score-results-stat-label">MISTAKES</span>
+              <span id="results-mistakes" class="score-results-stat-value">—</span>
+            </div>
+            <div class="score-results-stat">
+              <span class="score-results-stat-label">AVG. REACTION TIME</span>
+              <span id="results-avg-reaction" class="score-results-stat-value">—</span>
+            </div>
+            <div class="score-results-stat">
+              <span id="results-benchmark-label" class="score-results-stat-label">ISC WEST AVG.</span>
+              <span id="results-benchmark" class="score-results-stat-value score-results-stat-value--dim">—</span>
+            </div>
+          </div>
+          <div class="score-ruler-wrap">
+            <div id="score-ruler-marker" class="score-ruler-marker">▼</div>
+            <div id="score-ruler" class="score-ruler"></div>
+            <div id="score-ruler-tiers" class="score-ruler-tiers"></div>
+          </div>
         </div>
-        <div class="score-band score-band-best">
-          <span class="score-band-label">BEST REACTION TIME</span>
-          <span id="best-reaction" class="score-band-value">—</span>
-        </div>
-        <div class="score-cta-area">
-          <p class="score-cta-text">
-            Enter your info next to compete on the leader board for $1000 cash
-            award and more!
-          </p>
+        <div class="score-band score-band-summary">
+          <span class="score-band-label">SUMMARY</span>
+          <div class="score-summary-wrap">
+            <span id="score-summary" class="score-band-value score-summary-value">—</span>
+          </div>
         </div>
         <div class="score-actions">
           <button id="score-done-btn" class="score-next-btn nav-play-btn">
-            NEXT
+            NEXT →
           </button>
         </div>
       </section>
@@ -218,7 +240,7 @@ READY          </button>
           <span class="lead-band-label">FIRST NAME</span>
           <div class="lead-band-value-row">
             <span class="lead-band-typed" id="lead-firstname-display"></span
-            ><span class="lead-band-placeholder">John</span
+            ><span class="lead-band-placeholder">Usain</span
             ><span class="lead-band-cursor"></span>
           </div>
         </div>
@@ -228,7 +250,7 @@ READY          </button>
           <span class="lead-band-label">LAST NAME</span>
           <div class="lead-band-value-row">
             <span class="lead-band-typed" id="lead-lastname-display"></span
-            ><span class="lead-band-placeholder">Doe</span
+            ><span class="lead-band-placeholder">Bolt</span
             ><span class="lead-band-cursor"></span>
           </div>
         </div>
@@ -271,8 +293,11 @@ READY          </button>
 
         <!-- Actions — slides in last -->
         <div class="lead-actions" id="lead-actions">
+          <button id="lead-back-btn" class="nav-play-btn nav-back-btn">
+            ← BACK
+          </button>
           <button id="lead-submit-btn" class="score-next-btn nav-play-btn">
-            NEXT
+            NEXT →
           </button>
         </div>
       </section>
@@ -330,6 +355,7 @@ READY          </button>
     <script src="js/touch-keyboard.js?v=19"></script>
     <script src="js/sheets.js?v=19"></script>
     <script src="js/local-storage.js?v=19"></script>
+    <script src="js/sound.js?v=19"></script>
     <script src="js/game.js?v=19"></script>
     <script src="js/ui.js?v=19"></script>
     <script src="js/main.js?v=19"></script>

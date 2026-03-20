@@ -5,6 +5,7 @@ class LocalStorageBackup {
     this.storageKey = 'firefly_game_scores';
     this.outboxKey = 'firefly_score_outbox_v1';
     this.remoteLeaderboardCacheKey = 'firefly_remote_leaderboard_cache_v1';
+    this.globalAvgReactionKey = 'firefly_global_avg_reaction_v1';
     this.maxEntries = 1000; // Limit to prevent storage overflow
     this.retryBackoffMs = [2000, 5000, 15000, 60000, 300000];
   }
@@ -268,6 +269,17 @@ class LocalStorageBackup {
       console.error('Error writing remote leaderboard cache:', error);
       return false;
     }
+  }
+
+  getGlobalAvgReactionSec() {
+    try {
+      const v = parseFloat(localStorage.getItem(this.globalAvgReactionKey));
+      return isFinite(v) && v > 0 ? v : 0;
+    } catch (_) { return 0; }
+  }
+
+  setGlobalAvgReactionSec(sec) {
+    try { localStorage.setItem(this.globalAvgReactionKey, String(sec)); } catch (_) {}
   }
 
   /**

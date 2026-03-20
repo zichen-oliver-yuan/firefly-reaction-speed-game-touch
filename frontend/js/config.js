@@ -22,6 +22,9 @@ const CONFIG = {
     // video is disabled. This is useful if you only ever want the static demo shell
     // without the animated bands.
     disableDomAttractBands: true,
+    // When true, buttons stay permanently visible and light up with an incandescent
+    // bulb effect (color radiates from center) instead of the grow/collapse animation.
+    useIncandescentMode: true,
     // Ms to hold on the first frame between video loop replays (video attract mode).
     attractVideoHoldMs: 2000,
     // Ambient leaderboard scrolling (primarily used on the demo screen).
@@ -46,6 +49,7 @@ const CONFIG = {
     moleVisibleEndMs: 600, // how long it stays lit at MAX difficulty
     spawnGapStartMs: 450, // gap between spawns at the START (ms)
     spawnGapEndMs: 250, // gap between spawns at MAX difficulty (ms)
+    moleGrowDurationMs: 500, // fixed grow animation duration (ms) — same at all difficulties
     // Difficulty uses a 3-phase curve (easy → plateau → linear ramp)
     // defined in getDifficultyProgress(). No single exponent needed.
 
@@ -87,9 +91,76 @@ const CONFIG = {
     idleWarningThresholdSeconds: 20,
     idleWarningCountdownSeconds: 20,
 
+    // ─── Sound effects ───────────────────────────────────────────────────────
+    enableSoundEffects: true, // master toggle for all in-game sound effects
+
     // ─── Leaderboard auto-advance ────────────────────────────────────────────
     leaderboardCountdownEnabled: true,
     leaderboardCountdownIdleDelayMs: 5000, // delay before countdown starts (ms)
     leaderboardCountdownSeconds: 20, // seconds until auto-return to demo
+  },
+
+  // ─── Score screen ────────────────────────────────────────────────────────
+  score: {
+    // Each tier sits at a 0.1s tick on the ruler. A player's rating = the tier
+    // whose sec ≤ avgReaction < next tier's sec. Last tier is catch-all (≥ its sec).
+    // Ruler range is derived from first and last tier's sec.
+    reactionTiers: [
+      { sec: 0.4, label: 'Cheating??' },
+      { sec: 0.3, label: 'Superhuman' },
+      { sec: 0.4, label: 'F1 Driver' },
+      { sec: 0.5, label: 'Overachiever' },
+      { sec: 0.6, label: 'Pedestrian' },
+      { sec: 0.7, label: 'Technically Alive' },
+      { sec: 0.8, label: 'Sleeping Beauty' },
+      { sec: 0.9, label: 'Given up' },
+    ],
+
+    // Summary one-liners — picked by (speed × mistakes) matrix.
+    // speed: 'fast' | 'average' | 'slow'  (see speedBuckets)
+    // mistakes: 'low' | 'high'            (see mistakesLowMaxCount)
+    // Each combo has multiple lines; one is chosen at random per game.
+    summaryOneLiners: [
+      { speed: 'fast', mistakes: 'low', lines: [
+        'Olympian reflexes, zero mistakes. Are you even human?',
+        'Exquisite. Somebody call the Olympic committee.',
+        'Clean and fast. The benchmark is shaking.',
+      ]},
+      { speed: 'fast', mistakes: 'high', lines: [
+        'The speed is elite. The accuracy is a work in progress.',
+        'Fast enough to impress, just not enough to stop making mistakes.',
+        'Blistering pace, scattered aim.',
+      ]},
+      { speed: 'average', mistakes: 'low', lines: [
+        'Clean and composed. A quiet kind of excellent.',
+        'No drama, no mistakes. Respectable.',
+        'Steady and precise. Understated greatness.',
+      ]},
+      { speed: 'average', mistakes: 'high', lines: [
+        'Solid pace, room to sharpen.',
+        'The potential is visible. Keep going.',
+        'Not bad, not great. The middle is a starting point.',
+      ]},
+      { speed: 'slow', mistakes: 'low', lines: [
+        'Unhurried and spotless. A different kind of discipline.',
+        'Slow is smooth, smooth is accurate.',
+        'Deliberate. Precise. Suspiciously unbothered.',
+      ]},
+      { speed: 'slow', mistakes: 'high', lines: [
+        'Everyone starts somewhere. Keep showing up.',
+        'The journey is just beginning.',
+        'Rough around the edges. Plenty of runway ahead.',
+      ]},
+    ],
+
+    // Speed buckets (by tier index, 0-based): 0–fastMaxIdx = 'fast', etc.
+    speedBuckets: { fastMaxIdx: 2, averageMaxIdx: 4 },
+
+    // Mistakes ≤ this = 'low'; above = 'high'
+    mistakesLowMaxCount: 3,
+
+    // Benchmark column label and static fallback value (used until remote leaderboard is fetched)
+    benchmarkLabel: 'ISC WEST AVG.',
+    benchmarkFallbackSec: 0.516,
   },
 };

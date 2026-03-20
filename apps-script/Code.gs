@@ -135,16 +135,23 @@ function handleGetLeaderboard(payload) {
   const colMap = getColumnMap(header);
 
   const rows = values.slice(1);
-  const sorted = rows
-    .map(function (row) {
-      return {
-        timestamp: row[colMap.timestamp] || '',
-        name: row[colMap.name] || 'Unknown',
-        score: toNumber(row[colMap.totalScore]),
-        avgReaction: toNumber(row[colMap.averageReactionTime]),
-        bestReaction: toNumber(row[colMap.bestReactionTime])
-      };
-    })
+  const parsed = rows.map(function (row) {
+    return {
+      timestamp: row[colMap.timestamp] || '',
+      name: row[colMap.name] || 'Unknown',
+      score: toNumber(row[colMap.totalScore]),
+      avgReaction: toNumber(row[colMap.averageReactionTime]),
+      bestReaction: toNumber(row[colMap.bestReactionTime])
+    };
+  });
+
+  // Compute global average reaction time from all entries (before limit)
+  const allAvgs = parsed.map(function (r) { return r.avgReaction; }).filter(function (v) { return v > 0; });
+  const globalAvgReactionSec = allAvgs.length > 0
+    ? allAvgs.reduce(function (a, b) { return a + b; }, 0) / allAvgs.length
+    : 0;
+
+  const sorted = parsed
     .sort(function (a, b) {
       return b.score - a.score;
     })
@@ -160,7 +167,7 @@ function handleGetLeaderboard(payload) {
       };
     });
 
-  return jsonResponse({ ok: true, leaderboard: sorted });
+  return jsonResponse({ ok: true, leaderboard: sorted, globalAvgReactionSec: globalAvgReactionSec });
 }
 
 function getLeaderboardSheet(payload) {

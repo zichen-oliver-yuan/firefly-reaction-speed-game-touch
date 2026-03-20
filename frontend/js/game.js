@@ -37,6 +37,7 @@ class Game {
     this.molesSpawned = 0;
     this.comboStreak = 0;
     this.preGameCountdownInterval = null;
+    this.tipCountdownInterval = null;
     this.missPenalty = CONFIG.game.missPenalty || 120;
     this.wrongPressPenalty = CONFIG.game.wrongPressPenalty || 150;
     this.gridPressCooldownMs = CONFIG.game.gridPressCooldownMs || 120;
@@ -70,6 +71,7 @@ class Game {
     this.lastUserAction = Date.now();
 
     this.scoring = new ScoringSystem();
+    this.sound = new SoundManager();
     this.sheets = new SheetsClient();
     this.localStorage = new LocalStorageBackup();
     this.demoLeaderboardDirty = true;
@@ -82,6 +84,7 @@ class Game {
   }
 
   async init() {
+    this.sound.preload();
     this.sheets.init().catch(() => {
       console.log('Apps Script endpoint unavailable; continuing with local leaderboard.');
     });
@@ -115,6 +118,14 @@ class Game {
       this.lastUserAction = Date.now();
     }
 
+    if (newState !== window.GameState.TIP_PAGE) {
+      this.clearTipCountdown();
+    }
+
+    if (newState === window.GameState.TIP_PAGE) {
+      this.startTipCountdown();
+    }
+
     if (newState === window.GameState.PRE_GAME_COUNTDOWN) {
       this.startPreGameCountdown();
     }
@@ -129,6 +140,37 @@ class Game {
 
     if (newState === window.GameState.SHOW_LEADERBOARD) {
       this.startIdleDetection();
+    }
+  }
+
+  startTipCountdown() {
+    this.clearTipCountdown();
+    const tipCountdownSeconds = 5;
+    let remaining = tipCountdownSeconds;
+    this.updateTipCountdownDisplay(remaining);
+
+    this.tipCountdownInterval = setInterval(() => {
+      remaining -= 1;
+      this.updateTipCountdownDisplay(remaining);
+
+      if (remaining <= 0) {
+        this.clearTipCountdown();
+        this.setState(window.GameState.PRE_GAME_COUNTDOWN);
+      }
+    }, 1000);
+  }
+
+  clearTipCountdown() {
+    if (this.tipCountdownInterval) {
+      clearInterval(this.tipCountdownInterval);
+      this.tipCountdownInterval = null;
+    }
+  }
+
+  updateTipCountdownDisplay(seconds) {
+    const el = document.getElementById('tip-countdown-value');
+    if (el) {
+      el.textContent = seconds;
     }
   }
 
@@ -182,11 +224,13 @@ class Game {
     this.playerId = null;
     this.currentScoreId = null;
     this.clearGameplayTimers();
+    this.clearTipCountdown();
     if (this.preGameCountdownInterval) {
       clearInterval(this.preGameCountdownInterval);
       this.preGameCountdownInterval = null;
     }
     this.activeMoleIndex = null;
+    this._lastMoleIndex = null;
     this.currentReactionStart = null;
     this._redSpawnSchedule = null;
   }
@@ -217,7 +261,11 @@ class Game {
       window.ui.updateGameStats(this.hits, this.misses, this.wrongWhacks);
     }
     this.startSessionCountdown();
-    this.spawnMole(); // no gap — first mole spawns immediately
+    // Delay first spawn so the countdown exit animation (≈500 ms) clears first
+    this.moleSpawnTimeout = setTimeout(() => {
+      this.moleSpawnTimeout = null;
+      this.spawnMole();
+    }, 550);
   }
 
   randomBetween(min, max) {
@@ -400,7 +448,10 @@ class Game {
       return;
     }
 
-    const nextIndex = this.randomInt(0, 53);
+    let nextIndex = this.randomInt(0, 53);
+    if (nextIndex === this._lastMoleIndex) {
+      nextIndex = (nextIndex + 1 + this.randomInt(0, 52)) % 54;
+    }
     this.activeMoleIndex = nextIndex;
     this.activeMoleType = this._redSpawnSchedule && this._redSpawnSchedule.has(this.molesSpawned) ? 'red' : 'good';
     this.currentReactionStart = performance.now();
@@ -421,8 +472,9 @@ class Game {
       snapshot: this.getDebugSnapshot()
     });
 
+    const growMs = Math.min(CONFIG.game.moleGrowDurationMs, visibleDuration);
     if (window.ui) {
-      window.ui.lightButton(this.activeMoleIndex, this.activeMoleType, visibleDuration);
+      window.ui.lightButton(this.activeMoleIndex, this.activeMoleType, growMs);
       if (this.activeMoleType === 'red') {
         window.ui.showGameStatus('Avoid red button!', 'bad');
       } else {
@@ -544,39 +596,43 @@ class Game {
       snapshotAfterScore: this.getDebugSnapshot()
     });
 
+    this.sound.playStreak(this.comboStreak);
+
+    const fadeMs = window.ui ? window.ui.clearLitButton(true) : 0;
+    const feedbackDelay = fadeMs;
+
     if (window.ui) {
-      const tickerLine2 = this.comboStreak >= 2
-        ? `COMBO ${this.comboStreak}X`
-        : `+${(timeReward.deltaMs / 1000).toFixed(1)}s`;
-      window.ui.showButtonTicker(
-        buttonIndex,
-        `+${finalScore}`,
-        tickerLine2,
-        'good'
-      );
       window.ui.updateScore(this.score);
       window.ui.updateGameStats(this.hits, this.misses, this.wrongWhacks);
-      window.ui.animateScoreBreakdown([
-        { label: 'Hit', value: scoreBreakdown.base, type: 'good' }
-      ]);
-      window.ui.animateTimeBreakdown([
-        { label: 'Time', value: Number((timeReward.deltaMs / 1000).toFixed(2)), type: 'good' }
-      ]);
-      window.ui.showGameStatus(timeReward.message, 'good');
+      setTimeout(() => {
+        if (this.state !== window.GameState.GAME_PLAY) return;
+        window.ui.showButtonTicker(
+          buttonIndex,
+          'GOOD!',
+          `+${finalScore}`,
+          `+${(timeReward.deltaMs / 1000).toFixed(1)}s`,
+          `STREAK x${this.comboStreak}`,
+          'good'
+        );
+        window.ui.animateScoreBreakdown([
+          { label: 'Hit', value: scoreBreakdown.base, type: 'good' }
+        ]);
+        window.ui.showGameStatus(timeReward.message, 'good');
+      }, feedbackDelay);
     }
 
-    const collapseDelayMs = window.ui ? window.ui.clearLitButton(true) : 0;
     this.clearActiveMole();
     this.moleSpawnTimeout = setTimeout(() => {
       this.moleSpawnTimeout = null;
       this.spawnMole();
-    }, collapseDelayMs);
+    }, fadeMs);
   }
 
   handleWrongPress(buttonIndex) {
     const scoreBefore = this.score;
     this.score = Math.max(0, this.score - this.wrongPressPenalty);
     this.wrongWhacks += 1;
+    this.sound.playStreakLost();
     this.comboStreak = 0;
     console.log('[GAME][WRONG_PRESS]', {
       wrongPressPenalty: this.wrongPressPenalty,
@@ -585,24 +641,38 @@ class Game {
       litButtonIndex: this.activeMoleIndex,
       snapshotAfterScore: this.getDebugSnapshot()
     });
+    // Wrong press ends the round — clear the active mole and move on
+    const fadeMs = window.ui ? window.ui.clearLitButton(true) : 0;
+    const feedbackDelay = fadeMs;
+
     if (window.ui) {
-      window.ui.showButtonTicker(
-        buttonIndex,
-        `-${this.wrongPressPenalty}`,
-        'COMBO RESET',
-        'bad'
-      );
       window.ui.updateScore(this.score);
       window.ui.updateGameStats(this.hits, this.misses, this.wrongWhacks);
-      window.ui.animateScoreBreakdown([
-        { label: 'Wrong button', value: -this.wrongPressPenalty, type: 'bad' }
-      ]);
-      window.ui.animateTimeBreakdown([
-        { label: 'Time', value: -Number((this.timePenaltyWrongMs / 1000).toFixed(2)), type: 'bad' }
-      ]);
-      window.ui.showGameStatus('Wrong button', 'bad');
+      setTimeout(() => {
+        if (this.state !== window.GameState.GAME_PLAY) return;
+        window.ui.showButtonTicker(
+          buttonIndex,
+          'WRONG!',
+          `-${this.wrongPressPenalty}`,
+          `-${(this.timePenaltyWrongMs / 1000).toFixed(1)}s`,
+          'STREAK LOST',
+          'bad'
+        );
+        window.ui.animateScoreBreakdown([
+          { label: 'Wrong button', value: -this.wrongPressPenalty, type: 'bad' }
+        ]);
+        window.ui.showGameStatus('Wrong button', 'bad');
+      }, feedbackDelay);
     }
-    this.adjustTime(-this.timePenaltyWrongMs, 'wrong_press');
+
+    const sessionEnded = this.adjustTime(-this.timePenaltyWrongMs, 'wrong_press');
+    this.clearActiveMole();
+    if (!sessionEnded) {
+      this.moleSpawnTimeout = setTimeout(() => {
+        this.moleSpawnTimeout = null;
+        this.scheduleNextMole();
+      }, fadeMs);
+    }
   }
 
   handleRedPress(buttonIndex) {
@@ -613,6 +683,7 @@ class Game {
     const scoreBefore = this.score;
     this.score = Math.max(0, this.score - this.redPressPenalty);
     this.wrongWhacks += 1;
+    this.sound.playStreakLost();
     this.comboStreak = 0;
     console.log('[GAME][RED_PRESS]', {
       redPressPenalty: this.redPressPenalty,
@@ -621,32 +692,36 @@ class Game {
       scoreAfter: this.score,
       snapshotAfterScore: this.getDebugSnapshot()
     });
+    const fadeMs = window.ui ? window.ui.clearLitButton(true) : 0;
+    const feedbackDelay = fadeMs;
+
     if (window.ui) {
-      window.ui.showButtonTicker(
-        buttonIndex,
-        `-${this.redPressPenalty}`,
-        'COMBO RESET',
-        'bad'
-      );
       window.ui.updateScore(this.score);
       window.ui.updateGameStats(this.hits, this.misses, this.wrongWhacks);
-      window.ui.animateScoreBreakdown([
-        { label: 'Red trap', value: -this.redPressPenalty, type: 'bad' }
-      ]);
-      window.ui.animateTimeBreakdown([
-        { label: 'Time', value: -Number((this.timePenaltyRedMs / 1000).toFixed(2)), type: 'bad' }
-      ]);
-      window.ui.showGameStatus('Red penalty!', 'bad');
-      window.ui.showRedPressOverlay();
+      setTimeout(() => {
+        if (this.state !== window.GameState.GAME_PLAY) return;
+        window.ui.showButtonTicker(
+          buttonIndex,
+          'TRAP!',
+          `-${this.redPressPenalty}`,
+          `-${(this.timePenaltyRedMs / 1000).toFixed(1)}s`,
+          'STREAK LOST',
+          'bad'
+        );
+        window.ui.animateScoreBreakdown([
+          { label: 'Red trap', value: -this.redPressPenalty, type: 'bad' }
+        ]);
+        window.ui.showGameStatus('Red penalty!', 'bad');
+      }, feedbackDelay);
     }
-    const collapseDelayMs = window.ui ? window.ui.clearLitButton(true) : 0;
+
     const sessionEnded = this.adjustTime(-this.timePenaltyRedMs, 'red_press');
     this.clearActiveMole();
     if (!sessionEnded) {
       this.moleSpawnTimeout = setTimeout(() => {
         this.moleSpawnTimeout = null;
         this.scheduleNextMole();
-      }, collapseDelayMs);
+      }, fadeMs);
     }
   }
 
@@ -660,12 +735,19 @@ class Game {
         avoidedMoleIndex: this.activeMoleIndex,
         snapshotAfterAvoid: this.getDebugSnapshot()
       });
+      const fadeMs = window.ui ? window.ui.clearLitButton(true) : 0;
+      const feedbackDelay = fadeMs;
       if (window.ui) {
-        window.ui.clearLitButton();
-        window.ui.showGameStatus('Good avoid!', 'good');
+        setTimeout(() => {
+          if (this.state !== window.GameState.GAME_PLAY) return;
+          window.ui.showGameStatus('Good avoid!', 'good');
+        }, feedbackDelay);
       }
       this.clearActiveMole();
-      this.scheduleNextMole();
+      this.moleSpawnTimeout = setTimeout(() => {
+        this.moleSpawnTimeout = null;
+        this.scheduleNextMole();
+      }, fadeMs);
       return;
     }
 
@@ -673,6 +755,7 @@ class Game {
     const scoreBefore = this.score;
     this.score = Math.max(0, this.score - this.missPenalty);
     this.misses += 1;
+    this.sound.playStreakLost();
     this.comboStreak = 0;
     console.log('[GAME][MISS]', {
       missedMoleIndex,
@@ -681,30 +764,37 @@ class Game {
       scoreAfter: this.score,
       snapshotAfterScore: this.getDebugSnapshot()
     });
+    const fadeMs = window.ui ? window.ui.clearLitButton(true) : 0;
+    const feedbackDelay = fadeMs;
+
     if (window.ui) {
-      window.ui.showButtonTicker(
-        missedMoleIndex,
-        `-${this.missPenalty}`,
-        'COMBO RESET',
-        'bad'
-      );
-      window.ui.clearLitButton();
-      window.ui.showMissedOverlay(700);
       window.ui.updateScore(this.score);
       window.ui.updateGameStats(this.hits, this.misses, this.wrongWhacks);
-      window.ui.animateScoreBreakdown([
-        { label: 'Missed', value: -this.missPenalty, type: 'bad' }
-      ]);
-      window.ui.animateTimeBreakdown([
-        { label: 'Time', value: -Number((this.timePenaltyMissMs / 1000).toFixed(2)), type: 'bad' }
-      ]);
-      window.ui.showGameStatus('Missed', 'slow');
+      setTimeout(() => {
+        if (this.state !== window.GameState.GAME_PLAY) return;
+        window.ui.showButtonTicker(
+          missedMoleIndex,
+          'MISSED',
+          `-${this.missPenalty}`,
+          `-${(this.timePenaltyMissMs / 1000).toFixed(1)}s`,
+          'STREAK LOST',
+          'bad'
+        );
+        window.ui.animateScoreBreakdown([
+          { label: 'Missed', value: -this.missPenalty, type: 'bad' }
+        ]);
+        window.ui.showGameStatus('Missed', 'slow');
+      }, feedbackDelay);
     }
+
     const sessionEnded = this.adjustTime(-this.timePenaltyMissMs, 'miss');
     if (sessionEnded) return;
 
     this.clearActiveMole();
-    this.scheduleNextMole();
+    this.moleSpawnTimeout = setTimeout(() => {
+      this.moleSpawnTimeout = null;
+      this.scheduleNextMole();
+    }, fadeMs);
   }
 
   clearActiveMole() {
@@ -716,6 +806,7 @@ class Game {
       clearTimeout(this.moleSpawnTimeout);
       this.moleSpawnTimeout = null;
     }
+    this._lastMoleIndex = this.activeMoleIndex;
     this.activeMoleIndex = null;
     this.activeMoleType = 'good';
     this.currentReactionStart = null;
@@ -733,6 +824,7 @@ class Game {
   finishSession() {
     this.timeRemainingMs = 0;
     this.clearGameplayTimers();
+    this.sound.playGameOver();
     if (window.ui) {
       window.ui.updateTimeRemaining(this.getDisplayTimeRemaining());
       window.ui.showGameStatus('Time up!', 'bad');
@@ -747,9 +839,13 @@ class Game {
     const bestReaction = this.reactionTimes.length > 0
       ? Math.min(...this.reactionTimes)
       : 0;
+    const avgReaction = this.reactionTimes.length > 0
+      ? this.reactionTimes.reduce((a, b) => a + b, 0) / this.reactionTimes.length
+      : 0;
 
     if (window.ui) {
-      window.ui.showGameEnd(this.score, this.misses, this.molesSpawned, bestReaction);
+      const totalMistakes = this.misses + this.wrongWhacks;
+      window.ui.showGameEnd(this.score, totalMistakes, this.molesSpawned, bestReaction, avgReaction);
     }
     this.setState(window.GameState.SHOW_SCORE);
   }
@@ -998,8 +1094,9 @@ class Game {
 
   async getRemoteLeaderboard(limit = 10) {
     try {
-      const sheetsLeaderboard = await this.sheets.getLeaderboard(limit);
-      const remoteRows = Array.isArray(sheetsLeaderboard) ? sheetsLeaderboard : [];
+      const sheetsResult = await this.sheets.getLeaderboard(limit);
+      const remoteRows = Array.isArray(sheetsResult.leaderboard) ? sheetsResult.leaderboard : [];
+      const globalAvgSec = sheetsResult.globalAvgReactionSec || 0;
 
       if (remoteRows.length > 0) {
         this.localStorage.setCachedRemoteLeaderboard(remoteRows);
@@ -1007,6 +1104,10 @@ class Game {
         // Keep empty only when there is no existing cache to avoid replacing valid cache
         // during transient endpoint failures that return empty arrays.
         this.localStorage.setCachedRemoteLeaderboard([]);
+      }
+
+      if (globalAvgSec > 0) {
+        this.localStorage.setGlobalAvgReactionSec(globalAvgSec);
       }
 
       return remoteRows;

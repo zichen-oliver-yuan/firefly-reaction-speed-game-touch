@@ -32,17 +32,17 @@
 }
 
 :root {
-  --bg-light: #cfcfd1;
+  --bg-light: #d1d1d1;
   --bg-dark: #35373b;
   --bar-dark: #4a4b4f;
   --line-dark: #2f3135;
   --line-light: #e2e2e4;
   --text-dark: #111216;
-  --text-light: #ececef;
+  --text-light: #f2f2f4;
   --muted: #80838c;
-  --accent: #c9ea7b;
-  --danger: #ff6c6c;
-  --good: #d2f386;
+  --accent: #b2ff00;
+  --danger: #fc36fe;
+  --good: #b2ff00;
   --font-mono: 'GT America Mono', 'IBM Plex Mono', 'SFMono-Regular', ui-monospace, Menlo, monospace;
   --font-led: 'LED Dot Matrix', 'Courier New', monospace;
   --font-schrifted: 'SFT Schrifted Sans', 'Arial Black', sans-serif;
@@ -55,7 +55,9 @@
   --nav-btn-stack-gap: clamp(88px, 12vh, 164px);
   --section-banner-height: clamp(110px, 15.2vh, 291px);
   --section-band-height: clamp(116px, 15.7vh, 300px);
-  --floating-btn-clearance: clamp(150px, 28vh, 420px);
+  --nav-btn-inset: 2vh;
+  --nav-btn-radius: 0px;
+  --floating-btn-clearance: calc(var(--nav-btn-inset) + clamp(80px, 14vh, 200px));
 }
 
 * {
@@ -192,7 +194,7 @@ body {
 }
 
 .led-subtitle {
-  color: #ececef;
+  color: #f2f2f4;
   font-size: var(--led-subtitle-size);
   text-transform: uppercase;
   white-space: nowrap;
@@ -234,7 +236,7 @@ body {
 .screen-main {
   flex: 1;
   min-height: 0;
-  padding: 26px 0 200px;
+  padding: 26px 0 var(--floating-btn-clearance);
   display: flex;
   justify-content: center;
 }
@@ -274,12 +276,17 @@ body {
 
 }
 
-.btn:active {
-  transform: translateY(1px) scale(0.995);
+.btn {
+  transition: transform 150ms ease-out, filter 150ms ease-out;
+}
+.btn.pressing {
+  transform: scale(0.92);
+  filter: brightness(0.7);
+  transition: transform 80ms ease-out, filter 80ms ease-out;
 }
 
 .btn-primary {
-  box-shadow: 0 0 0 rgba(201, 234, 123, 0);
+  box-shadow: 0 0 0 rgba(178, 255, 0, 0);
 }
 
 .btn-secondary {
@@ -294,7 +301,7 @@ body {
   position: relative;
   isolation: isolate;
   /* Static glow; animated via ::before opacity for GPU-friendly compositing */
-  box-shadow: 0 0 30px rgba(201, 234, 123, 0.72), 0 0 64px rgba(201, 234, 123, 0.36);
+  box-shadow: 0 0 30px rgba(178, 255, 0, 0.72), 0 0 64px rgba(178, 255, 0, 0.36);
 }
 
 /* ::before handles the intense glow state — animate ONLY opacity (compositor-only) */
@@ -303,7 +310,7 @@ body {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  box-shadow: 0 0 78px rgba(201, 234, 123, 0.95), 0 0 130px rgba(201, 234, 123, 0.58);
+  box-shadow: 0 0 78px rgba(178, 255, 0, 0.95), 0 0 130px rgba(178, 255, 0, 0.58);
   animation: ambientGlow 1.9s ease-in-out infinite;
   pointer-events: none;
   z-index: -1;
@@ -319,8 +326,8 @@ body {
   position: absolute;
   inset: -10px;
   border-radius: 24px;
-  border: 2px solid rgba(201, 234, 123, 0.88);
-  box-shadow: 0 0 26px rgba(201, 234, 123, 0.55);
+  border: 2px solid rgba(178, 255, 0, 0.88);
+  box-shadow: 0 0 26px rgba(178, 255, 0, 0.55);
   animation: ambientPulse 1.9s ease-in-out infinite;
   pointer-events: none;
   z-index: -1;
@@ -427,7 +434,7 @@ body {
 }
 
 .leaderboard-entry.player-highlight {
-  color: #111215;
+  color: #000;
   font-size: clamp(2.3rem, 4.2vw, 4rem);
   font-weight: 700;
 }
@@ -443,10 +450,6 @@ body {
 }
 
 .back-top-btn {
-  position: fixed;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: var(--nav-btn-bottom);
   z-index: 5;
 }
 
@@ -473,7 +476,7 @@ body {
 .tutorial-copy {
   font-size: clamp(2rem, 3.6vw, 4.1rem);
   line-height: 1.22;
-  color: #17181c;
+  color: #000;
 }
 
 .screen-main-countdown,
@@ -506,14 +509,14 @@ body {
 
 .game-button.lit {
   border-color: var(--good);
-  background: rgba(210, 243, 134, 0.2);
-  box-shadow: 0 0 20px rgba(210, 243, 134, 0.5);
+  background: rgba(178, 255, 0, 0.2);
+  box-shadow: 0 0 20px rgba(178, 255, 0, 0.5);
 }
 
 .game-button.lit-red {
   border-color: var(--danger);
-  background: rgba(255, 108, 108, 0.2);
-  box-shadow: 0 0 20px rgba(255, 108, 108, 0.5);
+  background: rgba(252, 54, 254, 0.2);
+  box-shadow: 0 0 20px rgba(252, 54, 254, 0.5);
 }
 
 .button-grid-passive .game-button {
@@ -526,8 +529,8 @@ body {
   position: absolute;
   inset: -8px;
   border-radius: 50%;
-  border: 3px solid rgba(209, 243, 136, 0.9);
-  box-shadow: 0 0 16px rgba(209, 243, 136, 0.42);
+  border: 3px solid rgba(178, 255, 0, 0.9);
+  box-shadow: 0 0 16px rgba(178, 255, 0, 0.42);
   animation: pressRipple 330ms ease-out forwards;
 }
 
@@ -695,7 +698,7 @@ body {
 .tip-band-body {
   font-family: var(--font-schrifted);
   font-weight: 400;
-  font-size: clamp(24px, 6.5vw, 72px);
+  font-size: clamp(24px, 8vw, 120px);
   color: #000;
   letter-spacing: -0.05em;
   text-align: right;
@@ -703,11 +706,20 @@ body {
   padding-left: 200px;
 }
 
+.tip-countdown {
+  text-align: center;
+  font-family: var(--font-schrifted);
+  font-weight: 400;
+  font-size: clamp(18px, 5vw, 48px);
+  color: #fff;
+  padding: clamp(12px, 2.5vh, 32px) 0;
+  letter-spacing: -0.03em;
+}
+
 .tip-actions {
   flex: 1;
   display: flex;
   align-items: flex-end;
-  justify-content: center;
   padding-bottom: clamp(16px, 5vh, 60px);
 }
 
@@ -716,6 +728,7 @@ body {
   flex-direction: column;
   background: #000;
   overflow: hidden;
+  padding-bottom: 0;
 }
 
 .score-game-over-banner {
@@ -747,9 +760,124 @@ body {
   box-sizing: border-box;
 }
 
-.score-band-points { background: #03eabb; }
-.score-band-missed { background: #fc36fe; }
-.score-band-best { background: #b2ff00; }
+.score-band-points   { background: #03eabb; }
+.score-band-results  { background: #fc36fe; height: auto; min-height: var(--section-band-height); overflow: visible; padding-bottom: clamp(40px, 12vw, 60px); }
+
+/* Fills viewport from results down to NEXT — flex column on .screen-score */
+.score-band.score-band-summary {
+  background: #b2ff00;
+  flex: 1 1 0;
+  min-height: 0;
+  height: auto;
+  flex-shrink: 1;
+  overflow: hidden;
+  justify-content: flex-start;
+  gap: clamp(6px, 1.2vh, 16px);
+  padding-bottom: var(--floating-btn-clearance);
+}
+
+.score-band-summary .score-band-label {
+  flex-shrink: 0;
+}
+
+.score-band-summary .score-summary-wrap {
+  flex: 1 1 0;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+  overflow: hidden;
+}
+
+/* ── Results stat strip ─────────────────────────────────────────────── */
+.score-results-stats {
+  display: flex;
+  justify-content: flex-end;
+  gap: clamp(12px, 4vw, 56px);
+  padding: clamp(6px, 1.5vw, 20px) 0 clamp(4px, 1vw, 14px);
+}
+.score-results-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: clamp(2px, 0.4vw, 6px);
+  text-align: right;
+}
+.score-results-stat-label {
+  font-family: var(--font-mono);
+  font-size: clamp(10px, 1.6vw, 22px);
+  letter-spacing: -0.03em;
+  text-transform: uppercase;
+  color: #000;
+}
+.score-results-stat-value {
+  font-family: var(--font-schrifted);
+  font-size: clamp(26px, 5.5vw, 80px);
+  letter-spacing: -0.05em;
+  line-height: 1;
+  color: #000;
+}
+.score-results-stat-value--dim { opacity: 0.4; }
+
+/* ── Ruler ──────────────────────────────────────────────────────────── */
+.score-ruler-wrap {
+  position: relative;
+  width: 100%;
+  padding-top: clamp(18px, 3.5vw, 42px);
+}
+.score-ruler-marker {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  font-size: clamp(12px, 2vw, 26px);
+  line-height: 1;
+  pointer-events: none;
+  color: #000;
+}
+.score-ruler {
+  display: grid;
+  border-top: 4px solid #000;
+  padding-top: clamp(4px, 0.8vw, 10px);
+}
+.score-ruler-tick {
+  font-family: var(--font-mono);
+  font-size: clamp(10px, 1.5vw, 20px);
+  justify-self: center;
+  text-align: center;
+  line-height: 1;
+  color: #000;
+}
+.score-ruler-tick--active { font-weight: 700; }
+
+/* ── Tier labels (rotated below ruler) ──────────────────────────────── */
+.score-ruler-tiers {
+  display: grid;
+  width: 100%;
+  height: clamp(60px, 10vw, 120px);
+  overflow: visible;
+}
+.score-ruler-tier-slot {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.score-ruler-tier-label {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform-origin: top left;
+  transform: rotate(45deg);
+  font-family: 'SFT Schrifted Sans';
+  font-size: clamp(12px, 2vw, 28px);
+  line-height: 1;
+  white-space: nowrap;
+  opacity: 0.5;
+  pointer-events: none;
+  color: #000;
+}
+.score-ruler-tier-label--active {
+  opacity: 1;
+  font-size: clamp(14px, 2.4vw, 34px);
+}
 
 .score-band-label {
   font-family: var(--font-mono);
@@ -770,27 +898,23 @@ body {
   line-height: 1;
 }
 
-.score-band-value.odometer {
-  display: flex;
+/* Summary quote — same display size as SCORE; _fitScoreSummaryFont scales down if it overflows */
+.score-band-value.score-summary-value {
+  display: block;
   width: 100%;
-  justify-content: flex-end;
+  font-size: clamp(48px, 17vw, 184px);
+  text-align: right;
+  line-height: 1.08;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
-.score-cta-area {
-  flex: 1;
-  min-height: 0;
-  padding: clamp(16px, 3vh, 60px) clamp(18px, 5.2vw, 98px);
-  display: flex;
-  align-items: flex-start;
+.score-band-value.score-summary-value::before {
+  content: '"';
 }
 
-.score-cta-text {
-  font-family: var(--font-schrifted);
-  font-weight: 500;
-  font-size: clamp(20px, 5.9vw, 64px);
-  color: #fff;
-  letter-spacing: -0.05em;
-  line-height: 1.2;
+.score-band-value.score-summary-value::after {
+  content: '"';
 }
 
 .score-actions {
@@ -800,46 +924,69 @@ body {
   flex-shrink: 0;
 }
 
-.score-next-btn {
-  width: var(--nav-btn-width);
+/* NEXT stays fixed; no in-flow height from the button — reserve handled on .screen-score */
+.screen-score .score-actions {
+  padding-bottom: 0;
+  min-height: 0;
 }
 
 /* ── Button Ticker ──────────────────────────────────────── */
 
+.game-button {
+  overflow: hidden;
+}
+
 .btn-ticker {
-  position: fixed;
-  transform: translate(-50%, -50%);
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
+  justify-content: flex-end;
+  padding: 8%;
   pointer-events: none;
-  z-index: 500;
-  animation: tickerFloat 0.85s ease-out forwards;
-  text-align: left;
+  z-index: 10;
+  background: #000;
+  animation: tickerFadeInOut 0.85s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
-.btn-ticker-good .btn-ticker-score { color: #b2ff00; }
-.btn-ticker-bad  .btn-ticker-score { color: #fc36fe; }
+.btn-ticker-label {
+  align-self: flex-start;
+  font-size: clamp(13px, 3.2vw, 34px);
+  margin-bottom: auto;
+}
 
+.btn-ticker-time,
 .btn-ticker-score,
-.btn-ticker-time {
+.btn-ticker-streak {
+  align-self: flex-end;
+  text-align: right;
+}
+
+.btn-ticker-good .btn-ticker-label { color: #b2ff00; }
+.btn-ticker-good .btn-ticker-time  { color: #b2ff00; }
+.btn-ticker-good .btn-ticker-score { color: #b2ff00; }
+.btn-ticker-bad  .btn-ticker-label { color: #fc36fe; }
+.btn-ticker-bad  .btn-ticker-time  { color: #fc36fe; }
+.btn-ticker-bad  .btn-ticker-score { color: #fc36fe; }
+.btn-ticker-bad  .btn-ticker-streak { color: #fc36fe; }
+
+.btn-ticker-label,
+.btn-ticker-time,
+.btn-ticker-score,
+.btn-ticker-streak {
   font-family: var(--font-schrifted);
   font-weight: 400;
-  font-size: clamp(13px, 3.2vw, 36px);
+  font-size: clamp(11px, 2.6vw, 28px);
   letter-spacing: -0.04em;
-  line-height: 1;
-  text-shadow: 0 1px 5px rgba(0, 0, 0, 0.9);
+  line-height: 1.15;
+  color: #fff;
 }
 
-.btn-ticker-time {
-  color: rgba(255, 255, 255, 0.8);
-}
-
-@keyframes tickerFloat {
-  0%   { opacity: 1; transform: translate(-50%, -50%); }
-  25%  { opacity: 1; }
-  100% { opacity: 0; transform: translate(-50%, calc(-50% - 56px)); }
+@keyframes tickerFadeInOut {
+  0%   { opacity: 0; }
+  30%  { opacity: 1; }
+  70%  { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 /* ── Game Over Sliding Overlay ──────────────────────────── */
@@ -874,7 +1021,7 @@ body {
 /* ─── Lead Form — band layout ─────────────────────────────────────── */
 
 .screen-lead-form {
-  background: #000;
+  background: #b2ff00;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -983,7 +1130,7 @@ body {
 
 .lead-form-error {
   width: min(92vw, 920px);
-  color: rgba(255, 255, 255, 0.92);
+  color: #000;
   font-family: var(--font-schrifted);
   font-weight: 400;
   font-size: clamp(20px, 2.2vw, 32px);
@@ -1036,9 +1183,9 @@ body {
   height: clamp(56px, 8.1vw, 87px);
   /* border-radius: clamp(6px, 0.9vw, 10px); */
   border: none;
-  background: #434343;
-  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.6);
-  color: #fff;
+  background: #8ecc00;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.18);
+  color: #000;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1050,19 +1197,23 @@ body {
   user-select: none;
 }
 
-.keyboard-key:active {
-  background: #636363;
-  box-shadow: none;
-  transform: translateY(1px);
+.keyboard-key {
+  transition: transform 150ms ease-out, filter 150ms ease-out;
+}
+.keyboard-key.pressing {
+  transform: scale(0.92);
+  filter: brightness(0.7);
+  transition: transform 80ms ease-out, filter 80ms ease-out;
 }
 
 .keyboard-key.wide {
   flex: 1.7 1 0;
-  background: #202020;
+  background: #6fa300;
 }
 
-.keyboard-key.wide:active {
-  background: #383838;
+.keyboard-key.wide.pressing {
+  transform: scale(0.92);
+  filter: brightness(0.7);
 }
 
 .keyboard-key.space {
@@ -1074,13 +1225,8 @@ body {
   pointer-events: none;
 }
 
-.lead-back-btn {
-  width: var(--nav-btn-width);
-  background: rgba(255, 255, 255, 0.82);
-  border-color: rgba(255, 255, 255, 0.72);
-}
-
-#lead-submit-btn {
+#lead-submit-btn,
+#lead-back-btn {
   pointer-events: auto;
 }
 
@@ -1107,7 +1253,7 @@ body {
 
 @media (max-width: 980px) {
   .screen-main {
-    padding-bottom: 220px;
+    padding-bottom: var(--floating-btn-clearance);
   }
 
   .led-row {
@@ -1214,7 +1360,7 @@ body {
 
 /* Grid container — full width, fills remaining screen height */
 .screen-main-game {
-  padding: 0;
+  padding: 2px 0 0;
   align-items: stretch;
   justify-content: flex-start;
   flex-direction: column;
@@ -1224,12 +1370,13 @@ body {
 
 .isc-button-grid {
   flex: 1;
+  min-height: 0;
   width: 100%;
   align-self: stretch;
   aspect-ratio: auto;
   grid-template-columns: repeat(6, 1fr);
   grid-auto-rows: 1fr;
-  gap: 0;
+  gap: 2px;
   margin: 0;
   max-width: none;
 }
@@ -1242,7 +1389,7 @@ body {
    ────────────────────────────────────────────────────────────── */
 .isc-button-grid .game-button {
   border-radius: 0;
-  background: #d1d1d1;
+  background: #636368;
   border: none;
   transform: scale(0);
   transition: transform 0ms; /* instant snap back between spawns */
@@ -1259,6 +1406,7 @@ body {
 /* Target button — lime green with glow */
 .isc-button-grid .game-button.lit {
   background: #b2ff00;
+  z-index: 1;
   box-shadow:
     0 0 18px 4px rgba(178, 255, 0, 0.6),
     0 0 60px 12px rgba(178, 255, 0, 0.35),
@@ -1268,15 +1416,16 @@ body {
 /* Red trap button with glow */
 .isc-button-grid .game-button.lit-red {
   background: #fc36fe;
+  z-index: 1;
   box-shadow:
     0 0 18px 4px rgba(252, 54, 254, 0.6),
     0 0 60px 12px rgba(252, 54, 254, 0.35),
     0 0 120px 30px rgba(252, 54, 254, 0.15);
 }
 
-/* Press feedback: pop slightly bigger, no glow ripple */
+/* Press feedback: shrink slightly on tap */
 .isc-button-grid .game-button.pressed {
-  transform: scale(1.08) !important;
+  transform: scale(0.92) !important;
   transition: transform 80ms ease-out !important;
   box-shadow: none !important;
 }
@@ -1291,6 +1440,101 @@ body {
   transform: scale(0) !important;
   transition: transform var(--shrink-duration, 240ms)
     cubic-bezier(0.22, 0.9, 0.3, 1) !important;
+}
+
+/* ── Incandescent bulb mode ──────────────────────────────────
+   Buttons stay permanently visible. Lit effect radiates from
+   center like an incandescent filament. Toggle via
+   .incandescent-mode class on the grid.
+   ────────────────────────────────────────────────────────────── */
+
+/* Base: buttons always visible, no scale animation */
+.incandescent-mode .game-button {
+  transform: scale(1) !important;
+  filter: brightness(1);
+  transition: transform 150ms ease-out, filter 150ms ease-out, box-shadow 300ms ease-out !important;
+  will-change: auto;
+  position: relative;
+  overflow: hidden;
+}
+
+/* ::before pseudo — incandescent filament radial glow */
+.incandescent-mode .game-button::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle at center,
+    #b2ff00 0%, rgba(178, 255, 0, 0.4) 60%, transparent 75%);
+  transform: scale(0);
+  opacity: 0;
+  transition: transform 300ms ease-out, opacity 300ms ease-out;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Green lit — filament on + glow */
+.incandescent-mode .game-button.lit::before {
+  transform: scale(1.5);
+  opacity: 1;
+}
+.incandescent-mode .game-button.lit {
+  box-shadow:
+    0 0 18px 4px rgba(178, 255, 0, 0.6),
+    0 0 60px 12px rgba(178, 255, 0, 0.35),
+    0 0 120px 30px rgba(178, 255, 0, 0.15);
+}
+
+/* Red lit — magenta filament + glow */
+.incandescent-mode .game-button.lit-red::before {
+  background: radial-gradient(circle at center,
+    #fc36fe 0%, rgba(252, 54, 254, 0.4) 60%, transparent 75%);
+  transform: scale(1.5);
+  opacity: 1;
+}
+.incandescent-mode .game-button.lit-red {
+  box-shadow:
+    0 0 18px 4px rgba(252, 54, 254, 0.6),
+    0 0 60px 12px rgba(252, 54, 254, 0.35),
+    0 0 120px 30px rgba(252, 54, 254, 0.15);
+}
+
+/* Fading — fade-out after press/miss */
+.incandescent-mode .game-button.fading::before {
+  transform: scale(1.5);
+  opacity: 0;
+  transition: opacity 300ms ease-in;
+}
+.incandescent-mode .game-button.fading {
+  box-shadow: none;
+  transition: transform 150ms ease-out, filter 150ms ease-out, box-shadow 300ms ease-in !important;
+}
+
+/* Press feedback — shrink + darken on tap */
+.incandescent-mode .game-button.pressed {
+  transform: scale(0.92) !important;
+  filter: brightness(0.7);
+  transition: transform 80ms ease-out, filter 80ms ease-out !important;
+}
+
+/* Pressed + fading combined: keep shrunk/darkened, fade glow smoothly */
+.incandescent-mode .game-button.pressed.fading {
+  transform: scale(0.92) !important;
+  filter: brightness(0.7);
+  box-shadow: none;
+  transition: transform 80ms ease-out, filter 80ms ease-out, box-shadow 300ms ease-in !important;
+  will-change: transform, filter, box-shadow;
+}
+.incandescent-mode .game-button.pressed.fading::before {
+  transform: scale(1.5);
+  opacity: 0;
+  transition: opacity 300ms ease-in;
+}
+
+/* Suppress grow/collapse scale animations */
+.incandescent-mode.grid-growing .game-button,
+.incandescent-mode.grid-collapsing .game-button {
+  transform: scale(1) !important;
 }
 
 /* MISSED! / red-press warning overlay */
@@ -1357,7 +1601,7 @@ body {
 /* Phase 0 (default) */
 .attract-band-teal    { background: #03eabb; flex-grow: 1; }
 .attract-band-magenta { background: #fc36fe; flex-grow: 0; }
-.attract-band-lime    { background: #dfff96; flex-grow: 0; }
+.attract-band-lime    { background: #b2ff00; flex-grow: 0; }
 
 /* Phase 1: magenta slides up */
 .attract-bands.attract-phase-1 .attract-band-teal:not(.attract-band-extra)    { flex-grow: 1.11; }
@@ -1486,7 +1730,7 @@ body {
 
 /* Demo leaderboard header — lime bg (matches the final attract band colour) */
 .demo-lb-header {
-  background: #dfff96;
+  background: #b2ff00;
   color: #000;
   font-family: var(--font-schrifted);
   font-weight: 400;
@@ -1501,32 +1745,80 @@ body {
 /* "PLAY" button — always on top of both attract and demo-lb-panel */
 .demo-play-btn {
   z-index: 10;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.demo-play-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28em;
+}
+
+.demo-play-arrow {
+  display: inline-block;
+  animation: demoPlayArrowNudge 1.15s ease-in-out infinite;
+}
+
+@keyframes demoPlayArrowNudge {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(8px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .demo-play-arrow {
+    animation: none;
+  }
 }
 
 .nav-play-btn {
   position: fixed;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: var(--nav-btn-bottom);
-  width: var(--nav-btn-width);
-  background: rgba(255, 255, 255, 0.666);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  bottom: var(--nav-btn-inset);
+  left: var(--nav-btn-inset);
+  width: calc(100% - 2 * var(--nav-btn-inset));
+  background: rgba(220, 220, 220, 0.85);
+  backdrop-filter: blur(12px);
   color: #000;
-  border: 2px solid rgba(255, 255, 255, 0.4);
+  border: none;
+  border-radius: var(--nav-btn-radius);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18), 0 1.5px 6px rgba(0, 0, 0, 0.12);
   font-family: var(--font-mono);
   font-size: clamp(1.4rem, 3vw, 2.4rem);
-  letter-spacing: 0.1em;
-  padding: clamp(18px, 3vh, 32px) 0;
-  border-radius: 6px;
+  letter-spacing: 0em;
+  text-align: right;
+  padding: clamp(12px, 2vh, 40px) clamp(20px, 3vw, 30px);
   cursor: pointer;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
 
-.nav-play-btn:active {
-  opacity: 0.85;
-  transform: translateX(-50%);
+.nav-back-btn {
+  width: calc((100% - 3 * var(--nav-btn-inset)) * 0.3);
+  text-align: left;
+  border-right: none;
+  border-radius: var(--nav-btn-radius);
+}
+
+.nav-back-btn + .nav-play-btn {
+  width: calc((100% - 3 * var(--nav-btn-inset)) * 0.7);
+  left: auto;
+  right: var(--nav-btn-inset);
+  border-radius: var(--nav-btn-radius);
+}
+
+.nav-play-btn {
+  transition: transform 150ms ease-out, filter 150ms ease-out;
+}
+.nav-play-btn.pressing {
+  transform: scale(0.92);
+  filter: brightness(0.7);
+  transition: transform 80ms ease-out, filter 80ms ease-out;
 }
 
 /* ============================================================
@@ -1550,7 +1842,7 @@ body {
 
 .countdown-display.cd-teal    { background: #03eabb; }
 .countdown-display.cd-magenta { background: #fc36fe; }
-.countdown-display.cd-lime    { background: #dfff96; }
+.countdown-display.cd-lime    { background: #b2ff00; }
 
 .countdown-display-transition {
   position: fixed;
@@ -1662,7 +1954,7 @@ body {
 }
 
 .leaderboard-list-dark .leaderboard-entry.player-highlight {
-  background: #cbff9a;
+  background: #b2ff00;
   color: #000;
   font-weight: 400;
 }
@@ -1713,14 +2005,11 @@ body {
   z-index: 5;
 }
 
-#lead-back-btn {
-  bottom: calc(var(--nav-btn-bottom) + var(--nav-btn-stack-gap));
-}
-
 @media (max-height: 760px) {
   :root {
     --nav-btn-bottom: clamp(10px, 3vh, 24px);
-    --floating-btn-clearance: clamp(96px, 20vh, 180px);
+    --nav-btn-inset: 1vh;
+    --floating-btn-clearance: calc(var(--nav-btn-inset) + clamp(60px, 12vh, 140px));
   }
 
   .score-actions {
@@ -1756,6 +2045,7 @@ body {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
     background: rgba(255, 255, 255, 0.78);
+    box-shadow: 0 6px 32px rgba(0, 0, 0, 0.16), 0 2px 8px rgba(0, 0, 0, 0.10);
   }
 
   .touch-keyboard {
@@ -1767,11 +2057,11 @@ body {
   /* ── Simplify box-shadow effects that repaint every frame ── */
   .btn-ambient::before {
     /* Reduce blur radii for cheaper paints */
-    box-shadow: 0 0 40px rgba(201, 234, 123, 0.85), 0 0 60px rgba(201, 234, 123, 0.4);
+    box-shadow: 0 0 40px rgba(178, 255, 0, 0.85), 0 0 60px rgba(178, 255, 0, 0.4);
   }
 
   .btn-ambient::after {
-    box-shadow: 0 0 16px rgba(201, 234, 123, 0.4);
+    box-shadow: 0 0 16px rgba(178, 255, 0, 0.4);
   }
 
   /* ── Attract bands: reduce transition cost ── */

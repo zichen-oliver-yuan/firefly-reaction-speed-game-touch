@@ -58,31 +58,55 @@ class TouchKeyboard {
         const keyEl = document.createElement('div');
         keyEl.className = 'keyboard-key';
         
+        const addPressing = () => keyEl.classList.add('pressing');
+        const removePressing = () => keyEl.classList.remove('pressing');
+        keyEl.addEventListener('pointerup', removePressing);
+        keyEl.addEventListener('pointerleave', removePressing);
+        keyEl.addEventListener('pointercancel', removePressing);
+
         if (key === 'shift') {
           keyEl.textContent = '⇧';
           keyEl.classList.add('wide');
           keyEl.addEventListener('pointerdown', (e) => {
             e.preventDefault();
+            addPressing();
             this.toggleShift();
           });
         } else if (key === 'backspace') {
           keyEl.textContent = '⌫';
           keyEl.classList.add('wide');
+          let bsTimer = null;
+          let bsInterval = null;
+          const stopRepeat = () => {
+            clearTimeout(bsTimer);
+            clearInterval(bsInterval);
+            bsTimer = null;
+            bsInterval = null;
+          };
           keyEl.addEventListener('pointerdown', (e) => {
             e.preventDefault();
+            addPressing();
             this.handleBackspace();
+            bsTimer = setTimeout(() => {
+              bsInterval = setInterval(() => this.handleBackspace(), 60);
+            }, 400);
           });
+          keyEl.addEventListener('pointerup', stopRepeat);
+          keyEl.addEventListener('pointerleave', stopRepeat);
+          keyEl.addEventListener('pointercancel', stopRepeat);
         } else if (key === 'space') {
           keyEl.textContent = 'Space';
           keyEl.classList.add('space');
           keyEl.addEventListener('pointerdown', (e) => {
             e.preventDefault();
+            addPressing();
             this.handleKey(' ');
           });
         } else {
           keyEl.textContent = this.getKeyDisplay(key);
           keyEl.addEventListener('pointerdown', (e) => {
             e.preventDefault();
+            addPressing();
             this.handleKey(key);
           });
         }
