@@ -33,12 +33,12 @@
 
 /* Global custom scrollbar — square corners */
 * {
-  scrollbar-width: auto;
+  scrollbar-width: thin;
   scrollbar-color: rgba(82, 84, 90, 0.95) rgba(18, 19, 22, 0.22);
 }
 
 *::-webkit-scrollbar {
-  width: 30px;
+  width: 15px;
 }
 
 *::-webkit-scrollbar-track {
@@ -410,12 +410,13 @@ body {
   border-radius: 0;
   overflow-y: scroll;
   padding: 18px 0 var(--floating-btn-clearance);
-  scrollbar-width: auto;
+  scrollbar-width: thin;
+  scrollbar-gutter: stable;
   scrollbar-color: rgba(82, 84, 90, 0.95) rgba(18, 19, 22, 0.22);
 }
 
 .leaderboard-list::-webkit-scrollbar {
-  width: 30px;
+  width: 15px;
 }
 
 .leaderboard-list::-webkit-scrollbar-track {
@@ -438,9 +439,9 @@ body {
 
 .leaderboard-entry {
   display: grid;
-  grid-template-columns: clamp(72px, 12vw, 140px) minmax(0, 1fr) clamp(140px, 26vw, 360px);
+  grid-template-columns: clamp(36px, 7vw, 80px) minmax(0, 1fr) clamp(160px, 30vw, 380px);
   align-items: center;
-  gap: clamp(8px, 1.5vw, 22px);
+  gap: clamp(4px, 0.8vw, 10px);
   color: rgba(31, 32, 34, 0.46);
   font-family: var(--font-led);
   font-size: clamp(1.4rem, 3.9vw, 3.6rem);
@@ -449,6 +450,9 @@ body {
 
 .leaderboard-entry .leaderboard-score {
   text-align: right;
+  overflow: hidden;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .leaderboard-entry .leaderboard-name {
@@ -966,6 +970,7 @@ body {
   inset: 0;
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   justify-content: flex-end;
   padding: 8%;
   pointer-events: none;
@@ -975,7 +980,6 @@ body {
 }
 
 .btn-ticker-label {
-  align-self: flex-start;
   font-size: clamp(13px, 3.2vw, 34px);
   margin-bottom: auto;
 }
@@ -983,8 +987,7 @@ body {
 .btn-ticker-time,
 .btn-ticker-score,
 .btn-ticker-streak {
-  align-self: flex-end;
-  text-align: right;
+  text-align: left;
 }
 
 .btn-ticker-good .btn-ticker-label { color: #b2ff00; }
@@ -1021,12 +1024,12 @@ body {
   transform: translate(-50%, -100%);
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   gap: 2px;
   pointer-events: none;
   z-index: 500;
   animation: tickerPop 1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-  text-align: center;
+  text-align: left;
 }
 
 .btn-ticker-pop.btn-ticker-good .btn-ticker-label,
@@ -1047,8 +1050,7 @@ body {
   letter-spacing: -0.04em;
   line-height: 1;
   text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9), 0 0 20px rgba(0, 0, 0, 0.5);
-  align-self: center;
-  text-align: center;
+  text-align: left;
 }
 
 .btn-ticker-pop .btn-ticker-time {
@@ -1454,8 +1456,8 @@ body {
   }
 
   .leaderboard-entry {
-    grid-template-columns: 78px minmax(140px, 1fr) 180px;
-    gap: 10px;
+    grid-template-columns: 52px minmax(140px, 1fr) 180px;
+    gap: 6px;
     padding: 7px 14px;
   }
 
@@ -1533,6 +1535,14 @@ body {
   line-height: 1;
   overflow: hidden;
   align-self: flex-end;
+}
+
+.isc-panel-value.digits-5 {
+  font-size: clamp(2rem, min(13.5vw, 8.5vh), 11rem);
+}
+
+.isc-panel-value.digits-6 {
+  font-size: clamp(1.8rem, min(11vw, 7vh), 9rem);
 }
 
 /* Grid container — full width, fills remaining screen height */
@@ -2106,11 +2116,12 @@ body {
   background: #000;
   padding: 0 0 var(--floating-btn-clearance);
   overflow-y: scroll;
+  scrollbar-gutter: stable;
   scrollbar-color: rgba(255, 255, 255, 0.45) rgba(255, 255, 255, 0.08);
 }
 
 .leaderboard-list-dark::-webkit-scrollbar {
-  width: 30px;
+  width: 15px;
 }
 
 .leaderboard-list-dark::-webkit-scrollbar-track {
@@ -2132,10 +2143,10 @@ body {
 .leaderboard-list-dark .leaderboard-entry {
   font-family: var(--font-schrifted);
   font-weight: 400;
-  font-size: clamp(1.6rem, 8vw, 8.6rem);
+  font-size: clamp(1.4rem, 6.5vw, 7rem);
   color: rgba(255, 255, 255, 0.38);
   letter-spacing: -0.03em;
-  padding: clamp(6px, 1.2vh, 18px) clamp(24px, 5vw, 54px);
+  padding: clamp(6px, 1.2vh, 8px) clamp(12px, 5vw, 20px);
   min-height: clamp(64px, 12.5vh, 156px);
   align-items: center;
   line-height: 1.15;
@@ -2212,8 +2223,8 @@ body {
 
 @media (max-width: 640px) {
   .leaderboard-entry {
-    grid-template-columns: 56px minmax(0, 1fr) 104px;
-    gap: 8px;
+    grid-template-columns: 32px minmax(0, 1fr) 120px;
+    gap: 4px;
     padding-inline: 12px;
   }
 

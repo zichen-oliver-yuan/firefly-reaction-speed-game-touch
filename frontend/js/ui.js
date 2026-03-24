@@ -63,6 +63,10 @@ class UIController {
     this.leaderboardOverlayDurationMs = 650;
     this.leaderboardOverlayTimer = null;
     this.attractMeasurementsCache = null; // cached on first cycle, invalidated on resize
+    this._demoLbHideTimer = null; // separate timer for leaderboard hide (so touch can extend)
+    this._demoLbTouchExtendMs = 12000; // extra time added on each touch
+    this._demoLbCycleId = 0; // track which cycle the hide timer belongs to
+    this._bindDemoLbTouch();
 
     // ── Phase timing (ms from cycle start) ──
     this.attractReveal1Ms = 1500; // Phase 1: magenta slides up
@@ -592,6 +596,42 @@ class UIController {
     if (!panel) return;
     this.attractLbVisible = visible;
     panel.classList.toggle("visible", visible);
+
+    if (visible) {
+      const listEl = document.getElementById("demo-leaderboard-list");
+      if (listEl) {
+        // Run shrink after the slide-in transition finishes so elements have layout.
+        const onEnd = () => {
+          panel.removeEventListener("transitionend", onEnd);
+          this.shrinkLeaderboardNamesToFit(listEl);
+          this.shrinkLeaderboardScoresToFit(listEl);
+        };
+        panel.addEventListener("transitionend", onEnd, { once: true });
+      }
+    }
+  }
+
+  /** Bind touch listener on the demo leaderboard panel to extend its display time. */
+  _bindDemoLbTouch() {
+    const panel = document.getElementById("demo-lb-panel");
+    if (!panel) return;
+    panel.addEventListener("pointerdown", () => {
+      this._extendDemoLbTimer();
+    });
+  }
+
+  /** Reschedule the demo leaderboard hide timer (extends by _demoLbTouchExtendMs). */
+  _extendDemoLbTimer() {
+    if (!this.attractLbVisible || !this._demoLbHideTimer) return;
+    const cycleId = this._demoLbCycleId;
+    clearTimeout(this._demoLbHideTimer);
+    console.log(`[attract] Cycle ${cycleId} – touch extended leaderboard by ${this._demoLbTouchExtendMs}ms`);
+    this._demoLbHideTimer = setTimeout(() => {
+      this._demoLbHideTimer = null;
+      console.log(`[attract] Cycle ${cycleId} – Leaderboard hide (after touch extend), restarting`);
+      this.setDemoLeaderboardVisible(false);
+      this.startAttractCycle();
+    }, this._demoLbTouchExtendMs);
   }
 
   clearLeaderboardOverlayTimer() {
@@ -1186,23 +1226,26 @@ class UIController {
     }
 
     // Leaderboard show timer — all modes except recording.
+    this._demoLbCycleId = cycleId;
+    const lbDisplayMs = this.attractLbHideMs - this.attractLbShowMs;
     if (!window.isRecordingMode) {
       at(this.attractLbShowMs, () => {
         console.log(`[attract] Cycle ${cycleId} – Leaderboard show`);
         this.setDemoLeaderboardVisible(true);
-      });
 
-      // DOM mode only: timer-driven hide + restart.
-      // Video mode: leaderboard hide + restart are driven by video.ended above.
-      if (!window.useVideoAttract) {
-        at(this.attractLbHideMs, () => {
-          console.log(
-            `[attract] Cycle ${cycleId} – Leaderboard hide, restarting`
-          );
-          this.setDemoLeaderboardVisible(false);
-          this.startAttractCycle();
-        });
-      }
+        // DOM mode only: timer-driven hide + restart (stored separately so touch can extend).
+        // Video mode: leaderboard hide + restart are driven by video.ended above.
+        if (!window.useVideoAttract) {
+          this._demoLbHideTimer = setTimeout(() => {
+            this._demoLbHideTimer = null;
+            console.log(
+              `[attract] Cycle ${cycleId} – Leaderboard hide, restarting`
+            );
+            this.setDemoLeaderboardVisible(false);
+            this.startAttractCycle();
+          }, lbDisplayMs);
+        }
+      });
     } else {
       // Recording mode: no leaderboard overlay; timer-driven restart (DOM only).
       if (!window.useVideoAttract) {
@@ -1219,6 +1262,10 @@ class UIController {
   stopAttractCycle() {
     this.attractTimers.forEach((t) => clearTimeout(t));
     this.attractTimers = [];
+    if (this._demoLbHideTimer) {
+      clearTimeout(this._demoLbHideTimer);
+      this._demoLbHideTimer = null;
+    }
     this.setDemoLeaderboardVisible(false);
     this.resetAttractPhase();
   }
@@ -1540,11 +1587,17 @@ class UIController {
         playerAlreadyInList &&
         Number(entry.score) === playerScore &&
         (entry.name || "").trim().toLowerCase() === playerName;
+      // When the player row was injected above existing entries, bump the
+      // displayed rank of all subsequent entries by 1 so no rank is repeated.
+      const displayRank =
+        playerInserted && !playerAlreadyInList && entry.rank
+          ? Number(entry.rank) + 1
+          : entry.rank;
       const row = document.createElement("div");
       row.className =
         "leaderboard-entry" + (isPlayerEntry ? " player-highlight" : "");
       row.innerHTML = `
-        <span>${entry.rank || "-"}</span>
+        <span>${displayRank || "-"}</span>
         <span class="leaderboard-name">${this.toDisplayName(entry.name)}</span>
         <span class="leaderboard-score">${entry.score || 0}${
         includePtsSuffix ? "PTS" : ""
@@ -1595,7 +1648,10 @@ class UIController {
       listEl.id === "demo-leaderboard-list" ||
       listEl.id === "leaderboard-list"
     ) {
-      requestAnimationFrame(() => this.shrinkLeaderboardNamesToFit(listEl));
+      requestAnimationFrame(() => {
+        this.shrinkLeaderboardNamesToFit(listEl);
+        this.shrinkLeaderboardScoresToFit(listEl);
+      });
     }
 
     this.updateBackTopButtonVisibility();
@@ -1624,6 +1680,51 @@ class UIController {
         nameEl.style.fontSize = fontSize + "px";
       }
     });
+  }
+
+  /** Shrink individual score elements that overflow their grid column. */
+  shrinkLeaderboardScoresToFit(listEl) {
+    const scoreEls = listEl.querySelectorAll(
+      ".leaderboard-entry:not(.leaderboard-message) .leaderboard-score"
+    );
+    if (!scoreEls.length) return;
+
+    const minFontSize = 16;
+    const step = 2;
+
+    scoreEls.forEach((el) => {
+      // Reset so we measure from CSS.
+      el.style.fontSize = "";
+      el.style.overflow = "visible";
+
+      let fontSize = parseFloat(getComputedStyle(el).fontSize);
+
+      while (el.scrollWidth > el.clientWidth && fontSize > minFontSize) {
+        fontSize = Math.max(minFontSize, fontSize - step);
+        el.style.fontSize = fontSize + "px";
+      }
+
+      el.style.overflow = "";
+    });
+  }
+
+  /** Shrink an odometer container's font if its digit spans overflow. */
+  _shrinkOdometerToFit(el) {
+    if (!el) return;
+    // Temporarily reveal overflow so scrollWidth reports the true content width.
+    el.style.overflow = "visible";
+    el.style.fontSize = "";
+
+    let fontSize = parseFloat(getComputedStyle(el).fontSize);
+    const minFontSize = 16;
+    const step = 2;
+
+    while (el.scrollWidth > el.clientWidth && fontSize > minFontSize) {
+      fontSize = Math.max(minFontSize, fontSize - step);
+      el.style.fontSize = fontSize + "px";
+    }
+
+    el.style.overflow = "";
   }
 
   showLeaderboard(leaderboard, playerName = "Unknown", playerSummary = null) {
@@ -1800,6 +1901,7 @@ class UIController {
       html += `<span class="odometer-digit${blankClass}"><span class="odometer-digit-track"><span class="odometer-digit-slot${blankClass}">${char === " " ? "&nbsp;" : char}</span></span></span>`;
     }
     el.innerHTML = html;
+    this._shrinkOdometerToFit(el);
   }
 
   clearOdometerTimers(el) {
@@ -1923,6 +2025,7 @@ class UIController {
 
     el.innerHTML = html;
     el.dataset.value = String(numeric);
+    this._shrinkOdometerToFit(el);
 
     const tracks = el.querySelectorAll(".odometer-digit-track.roll-up, .odometer-digit-track.roll-down");
     if (tracks.length === 0) return;
@@ -1975,6 +2078,12 @@ class UIController {
 
   updateScore(score) {
     const numeric = Number(score) || 0;
+    const el = document.getElementById("current-score");
+    if (el) {
+      const digits = String(Math.abs(numeric)).length;
+      el.classList.toggle("digits-5", digits === 5);
+      el.classList.toggle("digits-6", digits >= 6);
+    }
     this.animateOdometer("current-score", numeric);
     this.lastScoreValue = numeric;
   }
