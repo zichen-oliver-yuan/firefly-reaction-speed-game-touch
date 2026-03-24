@@ -55,6 +55,7 @@ class UIController {
     this.gridCollapseDelayMs = 120;
     this.gridCollapseDurationMs = 240;
     this.incandescentMode = !!CONFIG.ui.useIncandescentMode;
+    this.tickerStyle = (CONFIG.ui && CONFIG.ui.tickerStyle) || 'block';
 
     // Attract cycle timers (multi-step: reveal → grow → scroll → grid → lb → repeat)
     this.attractTimers = [];
@@ -2001,24 +2002,44 @@ class UIController {
     if (!button) return;
 
     const ticker = document.createElement('div');
-    ticker.className = `btn-ticker btn-ticker-${tone}`;
-    ticker.innerHTML =
-      `<span class="btn-ticker-label">${label}</span>` +
-      `<span class="btn-ticker-time">${timeText}</span>` +
-      `<span class="btn-ticker-score">${scoreText}</span>` +
-      `<span class="btn-ticker-streak">${streakText}</span>`;
-    button.appendChild(ticker);
+
+    if (this.tickerStyle === 'pop') {
+      // "pop" — floating ticker above the button, appended to body
+      const rect = button.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top;
+
+      ticker.className = `btn-ticker-pop btn-ticker-${tone}`;
+      ticker.innerHTML =
+        `<span class="btn-ticker-label">${label}</span>` +
+        `<span class="btn-ticker-score">${scoreText}</span>` +
+        `<span class="btn-ticker-time">${timeText}</span>` +
+        (streakText ? `<span class="btn-ticker-streak">${streakText}</span>` : '');
+      ticker.style.left = `${cx}px`;
+      ticker.style.top = `${cy}px`;
+      document.body.appendChild(ticker);
+    } else {
+      // "block" — overlay inside the button
+      ticker.className = `btn-ticker btn-ticker-${tone}`;
+      ticker.innerHTML =
+        `<span class="btn-ticker-label">${label}</span>` +
+        `<span class="btn-ticker-time">${timeText}</span>` +
+        `<span class="btn-ticker-score">${scoreText}</span>` +
+        `<span class="btn-ticker-streak">${streakText}</span>`;
+      button.appendChild(ticker);
+    }
 
     if (!this._activeTickers) this._activeTickers = [];
     this._activeTickers.push(ticker);
 
+    const durationMs = this.tickerStyle === 'pop' ? 1050 : 900;
     setTimeout(() => {
       ticker.remove();
       if (this._activeTickers) {
         const idx = this._activeTickers.indexOf(ticker);
         if (idx >= 0) this._activeTickers.splice(idx, 1);
       }
-    }, 900);
+    }, durationMs);
   }
 
   clearAllTickers() {
@@ -2256,6 +2277,11 @@ class UIController {
   }
 
   clearLeadFormData() {
+    // Exit search mode if active
+    if (this._returningPlayerMode) {
+      this.exitReturningPlayerMode();
+    }
+
     const firstNameInput = document.getElementById("lead-first-name-input");
     const lastNameInput = document.getElementById("lead-last-name-input");
 
@@ -2286,6 +2312,195 @@ class UIController {
     const errorEl = document.getElementById("lead-form-error");
     if (!errorEl) return;
     errorEl.classList.add("hidden");
+  }
+
+  /* ─── Returning-player search mode ──────────────────────────────── */
+
+  showReturningPlayerBtn(leaderboard) {
+    const btn = document.getElementById("returning-player-btn");
+    if (!btn) return;
+    if (leaderboard && leaderboard.length > 0) {
+      btn.classList.remove("hidden");
+    } else {
+      btn.classList.add("hidden");
+    }
+  }
+
+  hideReturningPlayerBtn() {
+    const btn = document.getElementById("returning-player-btn");
+    if (btn) btn.classList.add("hidden");
+  }
+
+  get returningPlayerMode() {
+    return !!this._returningPlayerMode;
+  }
+
+  enterReturningPlayerMode(leaderboard) {
+    this._returningPlayerMode = true;
+    this._returningSearchLeaderboard = leaderboard || [];
+
+    const firstBand = document.getElementById("lead-band-firstname");
+    const lastBand = document.getElementById("lead-band-lastname");
+    const firstLabel = firstBand?.querySelector(".lead-band-label");
+    const btn = document.getElementById("returning-player-btn");
+
+    if (firstBand) firstBand.classList.add("search-mode");
+    if (lastBand) lastBand.classList.add("search-mode");
+    if (firstLabel) {
+      this._originalFirstLabel = firstLabel.textContent;
+      firstLabel.textContent = "SEARCH YOUR NAME";
+    }
+
+    // Clear the first name input for search typing
+    const firstInput = document.getElementById("lead-first-name-input");
+    const firstDisplay = document.getElementById("lead-firstname-display");
+    if (firstInput) firstInput.value = "";
+    if (firstDisplay) firstDisplay.textContent = "";
+    if (firstBand) firstBand.classList.remove("has-value");
+
+    // Inject results container into last name band
+    if (lastBand) {
+      let resultsEl = lastBand.querySelector(".returning-search-results");
+      if (!resultsEl) {
+        resultsEl = document.createElement("div");
+        resultsEl.className = "returning-search-results";
+        lastBand.appendChild(resultsEl);
+      }
+      this._searchResultsEl = resultsEl;
+    }
+
+    // Show all results initially
+    this.filterReturningPlayerResults("");
+
+    // Toggle button text
+    if (btn) btn.textContent = "NEW PLAYER? TAP HERE";
+
+    // Clear any previous returning player selection
+    if (window.game) window.game.returningPlayerName = null;
+
+    // Focus the first name input for typing
+    if (firstInput) {
+      if (typeof firstInput.setSelectionRange === "function") {
+        firstInput.setSelectionRange(0, 0);
+      }
+      firstInput.focus({ preventScroll: true });
+    }
+    if (firstBand) firstBand.classList.add("is-active");
+    if (lastBand) lastBand.classList.remove("is-active");
+
+    // Greyscale the lead form screen
+    const screen = document.getElementById("screen-lead-form");
+    if (screen) screen.classList.add("search-mode");
+  }
+
+  exitReturningPlayerMode() {
+    this._returningPlayerMode = false;
+    this._returningSearchLeaderboard = null;
+
+    const firstBand = document.getElementById("lead-band-firstname");
+    const lastBand = document.getElementById("lead-band-lastname");
+    const firstLabel = firstBand?.querySelector(".lead-band-label");
+    const btn = document.getElementById("returning-player-btn");
+
+    if (firstBand) firstBand.classList.remove("search-mode");
+    if (lastBand) lastBand.classList.remove("search-mode");
+    if (firstLabel) {
+      firstLabel.textContent = this._originalFirstLabel || "FIRST NAME";
+    }
+
+    // Remove the results container
+    if (this._searchResultsEl && this._searchResultsEl.parentNode) {
+      this._searchResultsEl.parentNode.removeChild(this._searchResultsEl);
+    }
+    this._searchResultsEl = null;
+
+    // Clear inputs so user starts fresh
+    const firstInput = document.getElementById("lead-first-name-input");
+    const firstDisplay = document.getElementById("lead-firstname-display");
+    if (firstInput) firstInput.value = "";
+    if (firstDisplay) firstDisplay.textContent = "";
+    if (firstBand) firstBand.classList.remove("has-value");
+
+    // Restore button text
+    if (btn) btn.textContent = "PLAYED BEFORE? TAP HERE";
+
+    // Remove greyscale from lead form screen
+    const screen = document.getElementById("screen-lead-form");
+    if (screen) screen.classList.remove("search-mode");
+  }
+
+  filterReturningPlayerResults(query) {
+    if (!this._searchResultsEl) return;
+    const leaderboard = this._returningSearchLeaderboard || [];
+    const q = (query || "").trim().toLowerCase();
+
+    const matches = q
+      ? leaderboard.filter((e) => (e.name || "").toLowerCase().includes(q))
+      : leaderboard;
+
+    // Cap display at 50
+    const capped = matches.slice(0, 50);
+
+    this._searchResultsEl.innerHTML = "";
+
+    if (capped.length === 0) {
+      const noMatch = document.createElement("div");
+      noMatch.className = "returning-search-no-match";
+      noMatch.textContent = q ? "NO MATCHES" : "NO PLAYERS YET";
+      this._searchResultsEl.appendChild(noMatch);
+      return;
+    }
+
+    capped.forEach((entry) => {
+      const row = document.createElement("div");
+      row.className = "returning-search-result";
+      row.setAttribute("data-name", entry.name || "");
+      const ts = this._formatShortTimestamp(entry.timestamp);
+      row.innerHTML =
+        `<span class="returning-search-result-name">${entry.name || "Unknown"}</span>` +
+        `<span class="returning-search-result-meta">${entry.score || 0}PTS${ts ? " \u00B7 " + ts : ""}</span>`;
+      this._searchResultsEl.appendChild(row);
+    });
+  }
+
+  _formatShortTimestamp(ts) {
+    if (!ts) return "";
+    const d = new Date(ts);
+    if (isNaN(d.getTime())) return "";
+    const now = new Date();
+    const msPerDay = 86400000;
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const startOfTsDay = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const daysAgo = Math.floor((startOfToday - startOfTsDay) / msPerDay);
+    if (daysAgo <= 0) return "today";
+    if (daysAgo === 1) return "yesterday";
+    return `${daysAgo} days ago`;
+  }
+
+  selectReturningPlayer(fullName) {
+    this.exitReturningPlayerMode();
+
+    const parts = (fullName || "").trim().split(/\s+/);
+    const firstName = parts[0] || "";
+    const lastName = parts.slice(1).join(" ") || "";
+
+    const firstInput = document.getElementById("lead-first-name-input");
+    const lastInput = document.getElementById("lead-last-name-input");
+    const firstDisplay = document.getElementById("lead-firstname-display");
+    const lastDisplay = document.getElementById("lead-lastname-display");
+    const firstBand = document.getElementById("lead-band-firstname");
+    const lastBand = document.getElementById("lead-band-lastname");
+
+    if (firstInput) firstInput.value = firstName;
+    if (lastInput) lastInput.value = lastName;
+    if (firstDisplay) firstDisplay.textContent = firstName;
+    if (lastDisplay) lastDisplay.textContent = lastName;
+    if (firstBand) firstBand.classList.toggle("has-value", !!firstName);
+    if (lastBand) lastBand.classList.toggle("has-value", !!lastName);
+
+    // Fire input events so existing display sync works
+    if (firstInput) firstInput.dispatchEvent(new Event("input", { bubbles: true }));
+    if (lastInput) lastInput.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
   resetLeadFormBands() {
@@ -2357,6 +2572,7 @@ class UIController {
   }
 
   showLeadFormWithOverlay() {
+    if (window.game && window.game.sound) window.game.sound.playLeadForm();
     this.resetLeadFormBands();
 
     const overlay = document.createElement("div");

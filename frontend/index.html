@@ -4,10 +4,15 @@
     <meta charset="UTF-8" />
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1.0, user-scalable=no" />
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Firefly - Reaction Speed Game</title>
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="css/styles.css?v=19" />
+    <link rel="manifest" href="manifest.json" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="theme-color" content="#35373b" />
+    <link rel="stylesheet" href="css/styles.css" />
   </head>
   <body>
     <div id="game-container" class="game-container">
@@ -289,6 +294,9 @@
           <div id="lead-form-error" class="lead-form-error hidden">
             Please enter your first and last name.
           </div>
+          <button id="returning-player-btn" class="returning-player-btn hidden">
+            PLAYED BEFORE? TAP HERE
+          </button>
         </div>
 
         <!-- Actions — slides in last -->
@@ -350,14 +358,14 @@
       </button>
     </div>
 
-    <script src="js/config.js?v=19"></script>
-    <script src="js/scoring.js?v=19"></script>
-    <script src="js/touch-keyboard.js?v=19"></script>
-    <script src="js/sheets.js?v=19"></script>
-    <script src="js/local-storage.js?v=19"></script>
-    <script src="js/sound.js?v=19"></script>
-    <script src="js/game.js?v=19"></script>
-    <script src="js/ui.js?v=19"></script>
-    <script src="js/main.js?v=19"></script>
+    <script src="js/config.js"></script>
+    <script src="js/scoring.js"></script>
+    <script src="js/touch-keyboard.js"></script>
+    <script src="js/sheets.js"></script>
+    <script src="js/local-storage.js"></script>
+    <script src="js/sound.js"></script>
+    <script src="js/game.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/main.js"></script>
   </body>
 </html>

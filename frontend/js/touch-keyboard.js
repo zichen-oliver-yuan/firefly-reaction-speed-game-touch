@@ -70,6 +70,7 @@ class TouchKeyboard {
           keyEl.addEventListener('pointerdown', (e) => {
             e.preventDefault();
             addPressing();
+            this.playKeyClick();
             this.toggleShift();
           });
         } else if (key === 'backspace') {
@@ -86,6 +87,7 @@ class TouchKeyboard {
           keyEl.addEventListener('pointerdown', (e) => {
             e.preventDefault();
             addPressing();
+            this.playKeyClick();
             this.handleBackspace();
             bsTimer = setTimeout(() => {
               bsInterval = setInterval(() => this.handleBackspace(), 60);
@@ -100,6 +102,7 @@ class TouchKeyboard {
           keyEl.addEventListener('pointerdown', (e) => {
             e.preventDefault();
             addPressing();
+            this.playKeyClick();
             this.handleKey(' ');
           });
         } else {
@@ -107,6 +110,7 @@ class TouchKeyboard {
           keyEl.addEventListener('pointerdown', (e) => {
             e.preventDefault();
             addPressing();
+            this.playKeyClick();
             this.handleKey(key);
           });
         }
@@ -193,6 +197,12 @@ class TouchKeyboard {
   toggleShift() {
     this.shift = !this.shift;
     this.render();
+  }
+
+  playKeyClick() {
+    if (window.game && window.game.sound) {
+      window.game.sound.playKeyClick();
+    }
   }
 
   /**

@@ -47,6 +47,9 @@ function doPost(e) {
     if (action === 'submitScore') {
       return handleSubmitScore(payload);
     }
+    if (action === 'upsertScore') {
+      return handleUpsertScore(payload);
+    }
     if (action === 'getLeaderboard') {
       return handleGetLeaderboard(payload);
     }
@@ -117,6 +120,93 @@ function handleSubmitScore(payload) {
     ok: true,
     status: 'inserted',
     scoreId,
+    serverTimestamp: new Date().toISOString()
+  });
+}
+
+function handleUpsertScore(payload) {
+  var returningName = normalizeString(payload.returningName, MAX_NAME_LENGTH);
+  if (!returningName) {
+    return handleSubmitScore(payload);
+  }
+
+  var scoreId = normalizeString(payload.scoreId, 128);
+  var timestamp = normalizeTimestamp(payload.timestamp);
+  var sessionId = normalizeString(payload.sessionId, 128);
+  var firstNameRaw = normalizeString(payload.firstName, MAX_FIRST_NAME_LENGTH);
+  var lastNameRaw = normalizeString(payload.lastName, MAX_LAST_NAME_LENGTH);
+  var fallbackName = normalizeString(payload.name, MAX_NAME_LENGTH);
+  var firstName = firstNameRaw || getFirstNameFromFullName(fallbackName);
+  var lastName = lastNameRaw || getLastNameFromFullName(fallbackName);
+  var name = normalizeString((firstName + ' ' + lastName).trim() || fallbackName, MAX_NAME_LENGTH);
+  var newTotalScore = toNumber(payload.totalScore);
+  var averageReactionTime = toNumber(payload.averageReactionTime);
+  var bestReactionTime = toNumber(payload.bestReactionTime);
+  var reactionTimes = normalizeReactionTimes(payload.reactionTimes);
+  var rounds = toInt(payload.rounds);
+
+  if (!scoreId || !timestamp || !name) {
+    return jsonResponse({ ok: false, error: 'Missing required fields' });
+  }
+
+  var sheet = getScoresSheet();
+  var header = getHeaderRow(sheet);
+  var colMap = getColumnMap(header);
+  var lastRow = sheet.getLastRow();
+
+  if (lastRow <= 1) {
+    return handleSubmitScore(payload);
+  }
+
+  var dataRange = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn());
+  var allValues = dataRange.getValues();
+  var lowerReturning = returningName.toLowerCase();
+
+  var bestRowIdx = -1;
+  var bestScore = -Infinity;
+  for (var i = 0; i < allValues.length; i++) {
+    var rowName = normalizeString(allValues[i][colMap.name], MAX_NAME_LENGTH).toLowerCase();
+    if (rowName === lowerReturning) {
+      var rowScore = toNumber(allValues[i][colMap.totalScore]);
+      if (rowScore > bestScore) {
+        bestScore = rowScore;
+        bestRowIdx = i;
+      }
+    }
+  }
+
+  if (bestRowIdx === -1) {
+    return handleSubmitScore(payload);
+  }
+
+  if (newTotalScore <= bestScore) {
+    return jsonResponse({
+      ok: true,
+      status: 'kept_existing',
+      existingScore: bestScore,
+      scoreId: scoreId,
+      serverTimestamp: new Date().toISOString()
+    });
+  }
+
+  var row = allValues[bestRowIdx];
+  row[colMap.scoreId] = scoreId;
+  row[colMap.timestamp] = timestamp;
+  row[colMap.sessionId] = sessionId;
+  row[colMap.totalScore] = newTotalScore;
+  row[colMap.averageReactionTime] = averageReactionTime;
+  row[colMap.bestReactionTime] = bestReactionTime;
+  row[colMap.reactionTimesJson] = JSON.stringify(reactionTimes);
+  row[colMap.rounds] = rounds;
+
+  var sheetRow = bestRowIdx + 2;
+  sheet.getRange(sheetRow, 1, 1, row.length).setValues([row]);
+
+  return jsonResponse({
+    ok: true,
+    status: 'updated',
+    scoreId: scoreId,
+    previousScore: bestScore,
     serverTimestamp: new Date().toISOString()
   });
 }

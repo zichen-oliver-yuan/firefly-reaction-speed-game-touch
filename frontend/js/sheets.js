@@ -104,7 +104,11 @@ class SheetsClient {
       rounds: Number(playerData.rounds) || 0
     };
 
-    const response = await this.request('submitScore', payload);
+    const action = playerData.returningName
+      ? (payload.returningName = playerData.returningName, 'upsertScore')
+      : 'submitScore';
+
+    const response = await this.request(action, payload);
     if (!response) return null;
 
     // Backward compatibility: older Apps Script returned only { ok: true }.

@@ -25,6 +25,10 @@ const CONFIG = {
     // When true, buttons stay permanently visible and light up with an incandescent
     // bulb effect (color radiates from center) instead of the grow/collapse animation.
     useIncandescentMode: true,
+    // Ticker display style:
+    //   "pop"   — floats above the button, scales in, then pops + slides up to fade out
+    //   "block" — fills the button square with a black overlay showing score details
+    tickerStyle: "pop",
     // Ms to hold on the first frame between video loop replays (video attract mode).
     attractVideoHoldMs: 2000,
     // Ambient leaderboard scrolling (primarily used on the demo screen).
@@ -45,11 +49,12 @@ const CONFIG = {
     maxSessionSeconds: 45, // hard cap — time bonuses can't exceed this
 
     // ─── Spawn timing (difficulty ramp: start → end over the session) ────────
-    moleVisibleStartMs: 2000, // how long the target stays lit at the START
-    moleVisibleEndMs: 600, // how long it stays lit at MAX difficulty
+    moleVisibleStartMs: 2000, // reaction window AFTER grow animation completes (ms, at START)
+    moleVisibleEndMs: 600, // reaction window AFTER grow animation completes (ms, at MAX difficulty)
     spawnGapStartMs: 450, // gap between spawns at the START (ms)
     spawnGapEndMs: 250, // gap between spawns at MAX difficulty (ms)
-    moleGrowDurationMs: 500, // fixed grow animation duration (ms) — same at all difficulties
+    moleGrowDurationMs: 500, // grow animation before reaction window starts (ms) — additive
+    // Total time button exists = moleGrowDurationMs + visibleDuration
     // Difficulty uses a 3-phase curve (easy → plateau → linear ramp)
     // defined in getDifficultyProgress(). No single exponent needed.
 
@@ -106,7 +111,7 @@ const CONFIG = {
     // whose sec ≤ avgReaction < next tier's sec. Last tier is catch-all (≥ its sec).
     // Ruler range is derived from first and last tier's sec.
     reactionTiers: [
-      { sec: 0.4, label: 'Cheating??' },
+      { sec: 0.2, label: 'Cheating??' },
       { sec: 0.3, label: 'Superhuman' },
       { sec: 0.4, label: 'F1 Driver' },
       { sec: 0.5, label: 'Overachiever' },
