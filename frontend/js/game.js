@@ -591,7 +591,7 @@ class Game {
     this.comboStreak += 1;
 
     const scoreBreakdown = this.scoring.calculateHitScore(reactionTime);
-    const comboMultiplier = this.comboStreak >= 5 ? this.comboStreak : 1;
+    const comboMultiplier = this.comboStreak >= 5 ? this.comboStreak - 3 : 1;
     const difficultyBonus = 1 + 0.5 * this.getDifficultyProgress(); // 1.0x at start → 1.5x at max
     const finalScore = Math.round(scoreBreakdown.base * comboMultiplier * difficultyBonus);
     this.score += finalScore;
@@ -623,7 +623,7 @@ class Game {
           'GOOD!',
           `+${finalScore}`,
           `+${(timeReward.deltaMs / 1000).toFixed(1)}s`,
-          this.comboStreak >= 5 ? `STREAK x${this.comboStreak}` : '',
+          this.comboStreak >= 5 ? `STREAK x${this.comboStreak - 3}` : '',
           'good'
         );
         window.ui.animateScoreBreakdown([

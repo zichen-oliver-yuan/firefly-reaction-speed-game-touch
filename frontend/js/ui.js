@@ -596,6 +596,19 @@ class UIController {
     if (!panel) return;
     this.attractLbVisible = visible;
     panel.classList.toggle("visible", visible);
+
+    if (visible) {
+      const listEl = document.getElementById("demo-leaderboard-list");
+      if (listEl) {
+        // Run shrink after the slide-in transition finishes so elements have layout.
+        const onEnd = () => {
+          panel.removeEventListener("transitionend", onEnd);
+          this.shrinkLeaderboardNamesToFit(listEl);
+          this.shrinkLeaderboardScoresToFit(listEl);
+        };
+        panel.addEventListener("transitionend", onEnd, { once: true });
+      }
+    }
   }
 
   /** Bind touch listener on the demo leaderboard panel to extend its display time. */
@@ -2065,6 +2078,12 @@ class UIController {
 
   updateScore(score) {
     const numeric = Number(score) || 0;
+    const el = document.getElementById("current-score");
+    if (el) {
+      const digits = String(Math.abs(numeric)).length;
+      el.classList.toggle("digits-5", digits === 5);
+      el.classList.toggle("digits-6", digits >= 6);
+    }
     this.animateOdometer("current-score", numeric);
     this.lastScoreValue = numeric;
   }

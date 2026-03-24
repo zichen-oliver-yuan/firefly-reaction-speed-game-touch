@@ -1537,6 +1537,14 @@ body {
   align-self: flex-end;
 }
 
+.isc-panel-value.digits-5 {
+  font-size: clamp(2rem, min(13.5vw, 8.5vh), 11rem);
+}
+
+.isc-panel-value.digits-6 {
+  font-size: clamp(1.8rem, min(11vw, 7vh), 9rem);
+}
+
 /* Grid container — full width, fills remaining screen height */
 .screen-main-game {
   padding: 2px 0 0;
@@ -2138,7 +2146,7 @@ body {
   font-size: clamp(1.4rem, 6.5vw, 7rem);
   color: rgba(255, 255, 255, 0.38);
   letter-spacing: -0.03em;
-  padding: clamp(6px, 1.2vh, 18px) clamp(24px, 5vw, 54px);
+  padding: clamp(6px, 1.2vh, 8px) clamp(12px, 5vw, 20px);
   min-height: clamp(64px, 12.5vh, 156px);
   align-items: center;
   line-height: 1.15;
