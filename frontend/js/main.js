@@ -1,6 +1,30 @@
 /** Main application entry point (touch display mode). */
 
 document.addEventListener('DOMContentLoaded', () => {
+  // ── PWA: register service worker for offline caching ──
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
+
+  // ── Kiosk: enter immersive fullscreen on first touch (Android) ──
+  function requestFullscreen() {
+    const el = document.documentElement;
+    const rfs = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (rfs) rfs.call(el).catch(() => {});
+  }
+  document.addEventListener('pointerdown', requestFullscreen, { once: true });
+  document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement) {
+      document.addEventListener('pointerdown', requestFullscreen, { once: true });
+    }
+  });
+
+  // ── Kiosk: block touchmove except on scrollable areas ──
+  document.addEventListener('touchmove', (e) => {
+    if (e.target.closest('.leaderboard-list, .lead-band-lastname.search-mode, .returning-search-results')) return;
+    e.preventDefault();
+  }, { passive: false });
+
   const runtimeConfig = (typeof window !== 'undefined' && window.CONFIG)
     || (typeof CONFIG !== 'undefined' ? CONFIG : null)
     || {};
@@ -149,6 +173,10 @@ function setupTouchKeyboard() {
       }
       if (window.ui) {
         window.ui.clearLeadFormError();
+        // Filter search results in returning-player mode
+        if (window.ui.returningPlayerMode && input === firstNameInput) {
+          window.ui.filterReturningPlayerResults(input.value);
+        }
       }
     });
   };
@@ -209,6 +237,7 @@ function setupEventHandlers() {
   const demoStartBtn = document.getElementById('demo-start-btn');
   bindPress(demoStartBtn, () => {
     if (window.game) {
+      window.game.sound.playNavNext();
       window.game.resetGame();
       window.game.setState(window.GameState.TIP_PAGE);
     }
@@ -217,6 +246,7 @@ function setupEventHandlers() {
   const tipBackBtn = document.getElementById('tip-back-btn');
   bindPress(tipBackBtn, () => {
     if (window.game) {
+      window.game.sound.playNavBack();
       window.game.setState(window.GameState.DEMO);
     }
   });
@@ -224,6 +254,7 @@ function setupEventHandlers() {
   const tipReadyBtn = document.getElementById('tip-ready-btn');
   bindPress(tipReadyBtn, () => {
     if (window.game) {
+      window.game.sound.playNavNext();
       window.game.setState(window.GameState.PRE_GAME_COUNTDOWN);
     }
   });
@@ -232,15 +263,21 @@ function setupEventHandlers() {
 
   bindPress(scoreDoneBtn, () => {
     if (window.game && window.ui) {
+      window.game.sound.stopGameOver();
+      window.game.sound.playNavNext();
       leadFormSkipPressesRemaining = null;
       window.ui.clearLeadFormError();
       window.game.setState(window.GameState.LEAD_FORM);
+      // Show "PLAYED BEFORE?" if there are leaderboard entries
+      const cached = window.game.getCachedRemoteLeaderboard(1000);
+      window.ui.showReturningPlayerBtn(cached);
     }
   });
 
   const leadBackBtn = document.getElementById('lead-back-btn');
   bindPress(leadBackBtn, () => {
     if (window.game) {
+      window.game.sound.playNavBack();
       window.game.setState(window.GameState.SHOW_SCORE);
     }
   });
@@ -273,8 +310,14 @@ function setupEventHandlers() {
 
   bindPress(leadSubmitBtn, () => {
     if (!window.game || !window.ui) return;
+    window.game.sound.playNavNext();
     if (window.game.state !== window.GameState.LEAD_FORM) return;
     if (leadSubmitInFlight) return;
+
+    // Exit search mode if still active (user pressed NEXT while searching)
+    if (window.ui.returningPlayerMode) {
+      window.ui.exitReturningPlayerMode();
+    }
 
     const data = window.ui.getLeadFormData();
     const firstNameEmpty = !data.firstName;
@@ -313,6 +356,32 @@ function setupEventHandlers() {
 
       const playerData = window.game.buildPlayerData();
       const cachedRemoteLeaderboard = window.game.getCachedRemoteLeaderboard(1000);
+      const isReturning = !!window.game.returningPlayerName;
+
+      // Returning player: if new score is not higher, skip save and show existing entry
+      if (isReturning && cachedRemoteLeaderboard.length > 0) {
+        const returningLower = window.game.returningPlayerName.trim().toLowerCase();
+        const existingEntry = cachedRemoteLeaderboard.find(
+          (e) => (e.name || '').trim().toLowerCase() === returningLower
+        );
+        if (existingEntry && Number(existingEntry.score) >= playerData.totalScore) {
+          // Existing score is equal or higher — show leaderboard with their old entry
+          const fakePlacement = window.game.getPlayerPlacementAgainstLeaderboard(
+            { totalScore: existingEntry.score }, cachedRemoteLeaderboard
+          );
+          const fakeSummary = {
+            playerData: { name: existingEntry.name, totalScore: existingEntry.score },
+            placement: fakePlacement,
+            pendingSync: false
+          };
+          window.game.setState(window.GameState.SHOW_LEADERBOARD);
+          window.ui.showLeaderboard(cachedRemoteLeaderboard, existingEntry.name, fakeSummary);
+          window.game.startLeaderboardCountdown();
+          window.game.handleUserAction();
+          return;
+        }
+      }
+
       const placement = cachedRemoteLeaderboard.length > 0
         ? window.game.getPlayerPlacementAgainstLeaderboard(playerData, cachedRemoteLeaderboard)
         : window.game.getPlayerPlacement(playerData);
@@ -360,17 +429,75 @@ function setupEventHandlers() {
 
   bindPress(playAgainBtn, () => {
     if (window.game) {
+      window.game.sound.playNavNext();
       window.game.playAgain();
     }
   });
 
   bindPress(leaderboardDoneBtn, () => {
     if (window.game) {
+      window.game.sound.playNavNext();
+      window.game.sound.stopGameOver();
       window.game.clearIdleTimer();
       window.game.clearIdleWarning();
       window.game.setState(window.GameState.DEMO);
     }
   });
+
+  // ─── Returning-player search ───────────────────────────────────
+  const returningPlayerBtn = document.getElementById('returning-player-btn');
+  bindPress(returningPlayerBtn, () => {
+    if (!window.ui || !window.game) return;
+    window.game.handleUserAction();
+    if (window.ui.returningPlayerMode) {
+      window.ui.exitReturningPlayerMode();
+    } else {
+      const cached = window.game.getCachedRemoteLeaderboard(1000);
+      window.ui.enterReturningPlayerMode(cached);
+    }
+  });
+
+  // Tap on a search result to select the returning player.
+  // Use pointerup + movement threshold so touch scrolling still works.
+  const lastBand = document.getElementById('lead-band-lastname');
+  if (lastBand) {
+    let searchPointerStart = null;
+    lastBand.addEventListener('pointerdown', (e) => {
+      const result = e.target.closest('.returning-search-result');
+      if (!result) { searchPointerStart = null; return; }
+      searchPointerStart = { x: e.clientX, y: e.clientY, result };
+      result.classList.add('pressing');
+    });
+    lastBand.addEventListener('pointermove', (e) => {
+      if (!searchPointerStart) return;
+      const dx = e.clientX - searchPointerStart.x;
+      const dy = e.clientY - searchPointerStart.y;
+      if (dx * dx + dy * dy > 100) { // 10px threshold
+        searchPointerStart.result.classList.remove('pressing');
+        searchPointerStart = null;
+      }
+    });
+    const finishSearch = () => {
+      if (!searchPointerStart) return;
+      const result = searchPointerStart.result;
+      result.classList.remove('pressing');
+      searchPointerStart = null;
+      const name = result.getAttribute('data-name');
+      if (name && window.ui && window.game) {
+        window.game.sound.playKeyClick();
+        window.ui.selectReturningPlayer(name);
+        window.game.returningPlayerName = name;
+        window.game.handleUserAction();
+      }
+    };
+    lastBand.addEventListener('pointerup', finishSearch);
+    lastBand.addEventListener('pointercancel', () => {
+      if (searchPointerStart) {
+        searchPointerStart.result.classList.remove('pressing');
+        searchPointerStart = null;
+      }
+    });
+  }
 
   const resumeBtn = document.getElementById('resume-btn');
   bindPress(resumeBtn, () => {

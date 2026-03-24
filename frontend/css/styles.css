@@ -31,6 +31,31 @@
   font-display: swap;
 }
 
+/* Global custom scrollbar — square corners */
+* {
+  scrollbar-width: auto;
+  scrollbar-color: rgba(82, 84, 90, 0.95) rgba(18, 19, 22, 0.22);
+}
+
+*::-webkit-scrollbar {
+  width: 30px;
+}
+
+*::-webkit-scrollbar-track {
+  background: rgba(18, 19, 22, 0.14);
+  border-radius: 0;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(82, 84, 90, 0.95);
+  border-radius: 0;
+  border: 1px solid rgba(18, 19, 22, 0.22);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(102, 104, 112, 1);
+}
+
 :root {
   --bg-light: #d1d1d1;
   --bg-dark: #35373b;
@@ -270,7 +295,7 @@ body {
   font-size: clamp(1.45rem, 3vw, 2.35rem);
   font-family: var(--font-mono);
   padding: 36px 26px;
-  touch-action: manipulation;
+  touch-action: none;
   -webkit-tap-highlight-color: transparent;
   letter-spacing: 0;
 
@@ -383,7 +408,7 @@ body {
   width: 100%;
   background: rgba(246, 246, 247, 0.52);
   border-radius: 0;
-  overflow-y: auto;
+  overflow-y: scroll;
   padding: 18px 0 var(--floating-btn-clearance);
   scrollbar-width: auto;
   scrollbar-color: rgba(82, 84, 90, 0.95) rgba(18, 19, 22, 0.22);
@@ -399,7 +424,7 @@ body {
 
 .leaderboard-list::-webkit-scrollbar-thumb {
   background: rgba(82, 84, 90, 0.95);
-  border-radius: 999px;
+  border-radius: 0;
   border: 1px solid rgba(18, 19, 22, 0.22);
 }
 
@@ -499,7 +524,7 @@ body {
   background: transparent;
   position: relative;
   transition: transform 110ms ease, border-color 130ms ease, box-shadow 130ms ease;
-  touch-action: manipulation;
+  touch-action: none;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -989,6 +1014,59 @@ body {
   100% { opacity: 0; }
 }
 
+/* ── "Pop" Ticker — floats above the button ───────────────── */
+
+.btn-ticker-pop {
+  position: fixed;
+  transform: translate(-50%, -100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  pointer-events: none;
+  z-index: 500;
+  animation: tickerPop 1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  text-align: center;
+}
+
+.btn-ticker-pop.btn-ticker-good .btn-ticker-label,
+.btn-ticker-pop.btn-ticker-good .btn-ticker-score,
+.btn-ticker-pop.btn-ticker-good .btn-ticker-time   { color: #b2ff00; }
+.btn-ticker-pop.btn-ticker-bad .btn-ticker-label,
+.btn-ticker-pop.btn-ticker-bad .btn-ticker-score,
+.btn-ticker-pop.btn-ticker-bad .btn-ticker-time,
+.btn-ticker-pop.btn-ticker-bad .btn-ticker-streak  { color: #fc36fe; }
+
+.btn-ticker-pop .btn-ticker-label,
+.btn-ticker-pop .btn-ticker-time,
+.btn-ticker-pop .btn-ticker-score,
+.btn-ticker-pop .btn-ticker-streak {
+  font-family: var(--font-schrifted);
+  font-weight: 400;
+  font-size: clamp(13px, 3.2vw, 36px);
+  letter-spacing: -0.04em;
+  line-height: 1;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9), 0 0 20px rgba(0, 0, 0, 0.5);
+  align-self: center;
+  text-align: center;
+}
+
+.btn-ticker-pop .btn-ticker-time {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.btn-ticker-pop .btn-ticker-streak {
+  font-size: clamp(10px, 2.2vw, 24px);
+  color: rgba(255, 255, 255, 0.6);
+}
+
+@keyframes tickerPop {
+  0%   { opacity: 0; transform: translate(-50%, -100%) scale(0.5); }
+  15%  { opacity: 1; transform: translate(-50%, -100%) scale(1.0); }
+  55%  { opacity: 1; transform: translate(-50%, -100%) scale(1.0) translateY(0); }
+  100% { opacity: 0; transform: translate(-50%, -100%) scale(1.15) translateY(-40px); }
+}
+
 /* ── Game Over Sliding Overlay ──────────────────────────── */
 
 .game-over-overlay {
@@ -1025,6 +1103,9 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  -webkit-filter: grayscale(0);
+  filter: grayscale(0);
+  transition: -webkit-filter 0.3s ease, filter 0.3s ease;
 }
 
 /* YOUR INFO banner */
@@ -1139,6 +1220,102 @@ body {
   text-align: center;
 }
 
+/* ─── Returning-player search mode ──────────────────────────────── */
+
+.returning-player-btn {
+  background: none;
+  border: none;
+  color: #000;
+  font-family: var(--font-mono);
+  font-size: clamp(14px, 2vw, 22px);
+  letter-spacing: -0.02em;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  padding: 12px 16px;
+  cursor: pointer;
+  opacity: 0.55;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.returning-player-btn:active {
+  opacity: 1;
+}
+
+/* Search mode — greyscale the entire lead form screen */
+.screen-lead-form.search-mode {
+  -webkit-filter: grayscale(1);
+  filter: grayscale(1);
+}
+
+/* Search mode — first name band becomes search bar */
+.lead-band-firstname.search-mode { background: #fc36fe; }
+
+/* Search mode — last name band becomes scrollable results area */
+.lead-band-lastname.search-mode {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0;
+  justify-content: flex-start;
+}
+
+.lead-band-lastname.search-mode .lead-band-label,
+.lead-band-lastname.search-mode .lead-band-value-row {
+  display: none;
+}
+
+.returning-search-results {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  touch-action: pan-y;
+}
+
+.returning-search-result {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: clamp(4px, 0.8vh, 8px) clamp(12px, 1.6vw, 17px);
+  font-family: var(--font-schrifted);
+  font-size: clamp(22px, 7vw, 72px);
+  color: #000;
+  letter-spacing: -0.03em;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.returning-search-result:active,
+.returning-search-result.pressing {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.returning-search-result-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.returning-search-result-meta {
+  font-size: clamp(13px, 3.5vw, 36px);
+  opacity: 0.45;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.returning-search-no-match {
+  padding: clamp(12px, 2vh, 24px) clamp(12px, 1.6vw, 17px);
+  font-family: var(--font-mono);
+  font-size: clamp(14px, 2vw, 22px);
+  color: rgba(0, 0, 0, 0.5);
+  text-align: center;
+}
+
 /* Hidden actual inputs (TouchKeyboard writes to these) */
 .lead-hidden-input {
   position: absolute;
@@ -1189,7 +1366,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  touch-action: manipulation;
+  touch-action: none;
   -webkit-tap-highlight-color: transparent;
   font-family: var(--font-schrifted);
   font-size: clamp(18px, 3vw, 32px);
@@ -1794,7 +1971,7 @@ body {
   text-align: right;
   padding: clamp(12px, 2vh, 40px) clamp(20px, 3vw, 30px);
   cursor: pointer;
-  touch-action: manipulation;
+  touch-action: none;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -1928,15 +2105,27 @@ body {
 .leaderboard-list-dark {
   background: #000;
   padding: 0 0 var(--floating-btn-clearance);
-  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+  overflow-y: scroll;
+  scrollbar-color: rgba(255, 255, 255, 0.45) rgba(255, 255, 255, 0.08);
+}
+
+.leaderboard-list-dark::-webkit-scrollbar {
+  width: 30px;
 }
 
 .leaderboard-list-dark::-webkit-scrollbar-track {
-  background: transparent;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 0;
 }
 
 .leaderboard-list-dark::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.45);
+  border-radius: 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.leaderboard-list-dark::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.6);
 }
 
 /* Dark-mode leaderboard rows */

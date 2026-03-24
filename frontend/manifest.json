@@ -1,0 +1,16 @@
+{
+  "name": "Firefly Reaction Speed Game",
+  "short_name": "Firefly",
+  "start_url": "/",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#35373b",
+  "theme_color": "#35373b",
+  "icons": [
+    {
+      "src": "/assets/SVG/Firefly_Symbol_DarkBlue_RGB.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

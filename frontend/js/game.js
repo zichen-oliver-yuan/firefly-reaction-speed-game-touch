@@ -59,6 +59,7 @@ class Game {
     this.playerName = '';
     this.playerFirstName = '';
     this.playerLastName = '';
+    this.returningPlayerName = null;
     this.playerId = null;
     this.currentScoreId = null;
 
@@ -181,6 +182,7 @@ class Game {
     }
 
     let remaining = CONFIG.game.preGameCountdownSeconds || 5;
+    this.sound.playCountdown();
     if (window.ui) {
       requestAnimationFrame(() => {
         if (
@@ -221,6 +223,7 @@ class Game {
     this.playerName = '';
     this.playerFirstName = '';
     this.playerLastName = '';
+    this.returningPlayerName = null;
     this.playerId = null;
     this.currentScoreId = null;
     this.clearGameplayTimers();
@@ -454,14 +457,17 @@ class Game {
     }
     this.activeMoleIndex = nextIndex;
     this.activeMoleType = this._redSpawnSchedule && this._redSpawnSchedule.has(this.molesSpawned) ? 'red' : 'good';
+    // Set reaction start at spawn time so taps during grow animation still register
     this.currentReactionStart = performance.now();
     this.molesSpawned += 1;
     const progress = this.getDifficultyProgress();
     const visibleDuration = this.getCurrentVisibleDurationMs();
+    const growMs = Math.min(CONFIG.game.moleGrowDurationMs, visibleDuration);
     console.log('[GAME][DIFFICULTY_STATE]', {
       progress: Number(progress.toFixed(3)),
       chosenSpawnDelayMs: this.pendingSpawnDelayMs,
       chosenVisibleDurationMs: visibleDuration,
+      growDurationMs: growMs,
       rampExponent: this.difficultyRampExponent
     });
     console.log('[GAME][SPAWN_MOLE]', {
@@ -472,7 +478,6 @@ class Game {
       snapshot: this.getDebugSnapshot()
     });
 
-    const growMs = Math.min(CONFIG.game.moleGrowDurationMs, visibleDuration);
     if (window.ui) {
       window.ui.lightButton(this.activeMoleIndex, this.activeMoleType, growMs);
       if (this.activeMoleType === 'red') {
@@ -482,9 +487,14 @@ class Game {
       }
     }
 
-    this.moleVisibleTimeout = setTimeout(() => {
-      this.handleMiss();
-    }, visibleDuration);
+    // Miss timeout starts AFTER the grow animation finishes, so visibleDuration
+    // is pure reaction time with a fully-visible button.
+    this.moleGrowTimeout = setTimeout(() => {
+      this.moleGrowTimeout = null;
+      this.moleVisibleTimeout = setTimeout(() => {
+        this.handleMiss();
+      }, visibleDuration);
+    }, growMs);
   }
 
   handleGridButtonPress(buttonIndex, source = 'unknown') {
@@ -582,7 +592,8 @@ class Game {
 
     const scoreBreakdown = this.scoring.calculateHitScore(reactionTime);
     const comboMultiplier = this.comboStreak >= 2 ? this.comboStreak : 1;
-    const finalScore = scoreBreakdown.base * comboMultiplier;
+    const difficultyBonus = 1 + 0.5 * this.getDifficultyProgress(); // 1.0x at start → 1.5x at max
+    const finalScore = Math.round(scoreBreakdown.base * comboMultiplier * difficultyBonus);
     this.score += finalScore;
     const timeReward = this.getHitTimeReward(reactionTime);
     this.adjustTime(timeReward.deltaMs, timeReward.reason);
@@ -591,6 +602,7 @@ class Game {
       scoreBreakdown,
       comboStreak: this.comboStreak,
       comboMultiplier,
+      difficultyBonus: Number(difficultyBonus.toFixed(3)),
       finalScore,
       timeReward,
       snapshotAfterScore: this.getDebugSnapshot()
@@ -632,7 +644,7 @@ class Game {
     const scoreBefore = this.score;
     this.score = Math.max(0, this.score - this.wrongPressPenalty);
     this.wrongWhacks += 1;
-    this.sound.playStreakLost();
+    this.sound.playWrongPress();
     this.comboStreak = 0;
     console.log('[GAME][WRONG_PRESS]', {
       wrongPressPenalty: this.wrongPressPenalty,
@@ -641,38 +653,27 @@ class Game {
       litButtonIndex: this.activeMoleIndex,
       snapshotAfterScore: this.getDebugSnapshot()
     });
-    // Wrong press ends the round — clear the active mole and move on
-    const fadeMs = window.ui ? window.ui.clearLitButton(true) : 0;
-    const feedbackDelay = fadeMs;
 
+    // Wrong press applies penalties but does NOT clear the active mole.
+    // The lit button stays visible and the player can still tap it.
     if (window.ui) {
       window.ui.updateScore(this.score);
       window.ui.updateGameStats(this.hits, this.misses, this.wrongWhacks);
-      setTimeout(() => {
-        if (this.state !== window.GameState.GAME_PLAY) return;
-        window.ui.showButtonTicker(
-          buttonIndex,
-          'WRONG!',
-          `-${this.wrongPressPenalty}`,
-          `-${(this.timePenaltyWrongMs / 1000).toFixed(1)}s`,
-          'STREAK LOST',
-          'bad'
-        );
-        window.ui.animateScoreBreakdown([
-          { label: 'Wrong button', value: -this.wrongPressPenalty, type: 'bad' }
-        ]);
-        window.ui.showGameStatus('Wrong button', 'bad');
-      }, feedbackDelay);
+      window.ui.showButtonTicker(
+        buttonIndex,
+        'WRONG!',
+        `-${this.wrongPressPenalty}`,
+        `-${(this.timePenaltyWrongMs / 1000).toFixed(1)}s`,
+        'STREAK LOST',
+        'bad'
+      );
+      window.ui.animateScoreBreakdown([
+        { label: 'Wrong button', value: -this.wrongPressPenalty, type: 'bad' }
+      ]);
+      window.ui.showGameStatus('Wrong button', 'bad');
     }
 
-    const sessionEnded = this.adjustTime(-this.timePenaltyWrongMs, 'wrong_press');
-    this.clearActiveMole();
-    if (!sessionEnded) {
-      this.moleSpawnTimeout = setTimeout(() => {
-        this.moleSpawnTimeout = null;
-        this.scheduleNextMole();
-      }, fadeMs);
-    }
+    this.adjustTime(-this.timePenaltyWrongMs, 'wrong_press');
   }
 
   handleRedPress(buttonIndex) {
@@ -683,7 +684,7 @@ class Game {
     const scoreBefore = this.score;
     this.score = Math.max(0, this.score - this.redPressPenalty);
     this.wrongWhacks += 1;
-    this.sound.playStreakLost();
+    this.sound.playRedPress();
     this.comboStreak = 0;
     console.log('[GAME][RED_PRESS]', {
       redPressPenalty: this.redPressPenalty,
@@ -735,6 +736,7 @@ class Game {
         avoidedMoleIndex: this.activeMoleIndex,
         snapshotAfterAvoid: this.getDebugSnapshot()
       });
+      this.sound.playRedAvoid();
       const fadeMs = window.ui ? window.ui.clearLitButton(true) : 0;
       const feedbackDelay = fadeMs;
       if (window.ui) {
@@ -757,6 +759,7 @@ class Game {
     this.misses += 1;
     this.sound.playStreakLost();
     this.comboStreak = 0;
+
     console.log('[GAME][MISS]', {
       missedMoleIndex,
       missPenalty: this.missPenalty,
@@ -798,6 +801,10 @@ class Game {
   }
 
   clearActiveMole() {
+    if (this.moleGrowTimeout) {
+      clearTimeout(this.moleGrowTimeout);
+      this.moleGrowTimeout = null;
+    }
     if (this.moleVisibleTimeout) {
       clearTimeout(this.moleVisibleTimeout);
       this.moleVisibleTimeout = null;
@@ -865,7 +872,7 @@ class Game {
       this.currentScoreId = this.generateScoreId();
     }
 
-    return {
+    const data = {
       scoreId: this.currentScoreId,
       name: this.playerName || 'Unknown',
       firstName: (this.playerFirstName || '').trim(),
@@ -879,6 +886,10 @@ class Game {
       rounds: this.molesSpawned,
       timestamp: new Date().toISOString()
     };
+    if (this.returningPlayerName) {
+      data.returningName = this.returningPlayerName;
+    }
+    return data;
   }
 
   generateScoreId() {
