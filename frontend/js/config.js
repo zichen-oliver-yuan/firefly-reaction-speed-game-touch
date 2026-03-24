@@ -61,9 +61,9 @@ const CONFIG = {
     // ─── Scoring ─────────────────────────────────────────────────────────────
     // Per-hit score uses an exponential curve: 50 (slow) → 1000 (≤0.3s)
     // Combo multiplier = consecutive hit streak (2X, 3X, 4X…)
-    missPenalty: 120, // points deducted for a miss
-    wrongPressPenalty: 200, // points deducted for tapping the wrong cell
-    redPressPenalty: 420, // points deducted for tapping the red trap button
+    missPenalty: 200, // points deducted for a miss
+    wrongPressPenalty: 500, // points deducted for tapping the wrong cell
+    redPressPenalty: 500, // points deducted for tapping the red trap button
 
     // ─── Time bonuses / penalties (added to / subtracted from countdown) ─────
     timeBonusFastSec: 1, // time added for a "fast" hit (≤ fastHitThresholdSec)
@@ -74,18 +74,18 @@ const CONFIG = {
     timePenaltyRedSec: 2, // time deducted for hitting the red button
 
     // ─── Reaction time thresholds ────────────────────────────────────────────
-    fastHitThresholdSec: 0.28, // faster than this → "fast" bonus
-    goodHitThresholdSec: 0.55, // faster than this → "good" bonus (else "slow")
+    fastHitThresholdSec: 0.3, // faster than this → "fast" bonus
+    goodHitThresholdSec: 0.5, // faster than this → "good" bonus (else "slow")
     minReactionTime: 0.1, // clamp floor for reaction time recording
     maxReactionTime: 1.2, // clamp ceiling — wider window so more hits earn a bonus
 
     // ─── Red trap button ─────────────────────────────────────────────────────
     redButtonsPerSession: 8, // fixed number of red traps per game session
-    redButtonMinSpacing: 4, // minimum green spawns between reds
+    redButtonMinSpacing: 2, // minimum green spawns between reds
     redButtonMaxSpacing: 8, // maximum green spawns between reds
 
     // ─── Input ───────────────────────────────────────────────────────────────
-    gridPressCooldownMs: 120, // ignore duplicate taps within this window (ms)
+    gridPressCooldownMs: 250, // ignore duplicate taps within this window (ms)
 
     // ─── Pre-game countdown ──────────────────────────────────────────────────
     preGameCountdownSeconds: 3,
@@ -102,7 +102,7 @@ const CONFIG = {
     // ─── Leaderboard auto-advance ────────────────────────────────────────────
     leaderboardCountdownEnabled: true,
     leaderboardCountdownIdleDelayMs: 5000, // delay before countdown starts (ms)
-    leaderboardCountdownSeconds: 20, // seconds until auto-return to demo
+    leaderboardCountdownSeconds: 30, // seconds until auto-return to demo
   },
 
   // ─── Score screen ────────────────────────────────────────────────────────
