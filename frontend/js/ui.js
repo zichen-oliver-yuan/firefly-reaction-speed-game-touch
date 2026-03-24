@@ -2319,21 +2319,17 @@ class UIController {
     ruler.style.gridTemplateColumns = gridTemplate;
     tiersEl.style.gridTemplateColumns = gridTemplate;
 
-    // One tick per tier
+    // Range-end labels
+    const minLabel = document.getElementById("score-ruler-min");
+    const maxLabel = document.getElementById("score-ruler-max");
+    if (minLabel) minLabel.textContent = CONFIG.score.rulerMin.toFixed(1) + 's';
+    if (maxLabel) maxLabel.textContent = CONFIG.score.rulerMax.toFixed(1) + 's';
+
     ruler.innerHTML = "";
     const activeRating = (avgSec > 0 && window.game && window.game.scoring)
       ? window.game.scoring.getRating(avgSec) : null;
 
-    for (let i = 0; i < tiers.length; i++) {
-      const t = tiers[i];
-      const tick = document.createElement("span");
-      tick.className = "score-ruler-tick";
-      tick.textContent = t.sec.toFixed(1);
-      if (activeRating && activeRating.index === i) tick.classList.add("score-ruler-tick--active");
-      ruler.appendChild(tick);
-    }
-
-    // Tier labels below ticks
+    // Tier labels below ruler line
     tiersEl.innerHTML = "";
     for (let i = 0; i < tiers.length; i++) {
       const t = tiers[i];
@@ -2347,26 +2343,11 @@ class UIController {
       tiersEl.appendChild(slot);
     }
 
-    // Position marker by interpolating between grid column centers.
-    // Equal 1fr columns → tick i center sits at (i + 0.5) / N of the ruler width.
+    // Position marker linearly within rulerMin–rulerMax range, clamped to 0–100%.
     if (avgSec > 0) {
-      const N = tiers.length;
-      const centerPct = i => ((i + 0.5) / N) * 100;
-      let pct;
-      if (avgSec <= tiers[0].sec) {
-        pct = centerPct(0);
-      } else if (avgSec >= tiers[N - 1].sec) {
-        pct = centerPct(N - 1);
-      } else {
-        for (let i = 0; i < N - 1; i++) {
-          if (avgSec >= tiers[i].sec && avgSec < tiers[i + 1].sec) {
-            const frac = (avgSec - tiers[i].sec) / (tiers[i + 1].sec - tiers[i].sec);
-            pct = centerPct(i) + (frac / N) * 100;
-            break;
-          }
-        }
-      }
-      if (pct != null) marker.style.left = `${pct}%`;
+      const { rulerMin, rulerMax } = CONFIG.score;
+      const pct = ((avgSec - rulerMin) / (rulerMax - rulerMin)) * 100;
+      marker.style.left = `${Math.max(0, Math.min(100, pct))}%`;
     }
   }
 

@@ -107,18 +107,20 @@ const CONFIG = {
 
   // ─── Score screen ────────────────────────────────────────────────────────
   score: {
-    // Each tier sits at a 0.1s tick on the ruler. A player's rating = the tier
-    // whose sec ≤ avgReaction < next tier's sec. Last tier is catch-all (≥ its sec).
-    // Ruler range is derived from first and last tier's sec.
+    // Ruler range — tier sec values are derived: tier i → rulerMin + i/(N-1) * (rulerMax - rulerMin).
+    // A player's rating = the tier whose sec ≤ avgReaction < next tier's sec.
+    rulerMin: 0.3,
+    rulerMax: 0.8,
     reactionTiers: [
-      { sec: 0.2, label: 'Cheating??' },
-      { sec: 0.3, label: 'Superhuman' },
-      { sec: 0.4, label: 'F1 Driver' },
-      { sec: 0.5, label: 'Overachiever' },
-      { sec: 0.6, label: 'Pedestrian' },
-      { sec: 0.7, label: 'Technically Alive' },
-      { sec: 0.8, label: 'Sleeping Beauty' },
-      { sec: 0.9, label: 'Given up' },
+      { label: 'Cheating??' },
+      { label: 'Superhuman' },
+      { label: 'F1 Driver' },
+      { label: 'Overachiever' },
+      { label: 'Semi-pro' },
+      { label: 'Amateur' },
+      { label: 'Pedestrian' },
+      { label: 'Technically Alive' },
+      { label: 'Sleeping beauty' },
     ],
 
     // Summary one-liners — picked by (speed × mistakes) matrix.
@@ -159,7 +161,7 @@ const CONFIG = {
     ],
 
     // Speed buckets (by tier index, 0-based): 0–fastMaxIdx = 'fast', etc.
-    speedBuckets: { fastMaxIdx: 2, averageMaxIdx: 4 },
+    speedBuckets: { fastMaxIdx: 3, averageMaxIdx: 5 },
 
     // Mistakes ≤ this = 'low'; above = 'high'
     mistakesLowMaxCount: 3,
@@ -169,3 +171,12 @@ const CONFIG = {
     benchmarkFallbackSec: 0.516,
   },
 };
+
+// Derive tier sec values from ruler range
+(function () {
+  const { rulerMin, rulerMax, reactionTiers } = CONFIG.score;
+  const N = reactionTiers.length;
+  reactionTiers.forEach((t, i) => {
+    t.sec = rulerMin + (i / (N - 1)) * (rulerMax - rulerMin);
+  });
+})();
